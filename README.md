@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-**实现阶段：M0 工程基线已完成，下一阶段为 M1 节拍器核心。**
+**实现阶段：M1 节拍器核心已完成，下一阶段为 M2 设置与体验。**
 
 ## 本地启动
 
@@ -75,6 +75,7 @@ pnpm exec playwright test --list
 - [产品与交互设计](docs/product-design.md)
 - [技术方案](docs/technical-solution.md)
 - [开发计划](docs/development-plan.md)
+- [Claude Code 说明](CLAUDE.md)
 - [AI 协作规范](AGENTS.md)
 - [AI 代理协作指南](docs/ai-agent-guide.md)
 

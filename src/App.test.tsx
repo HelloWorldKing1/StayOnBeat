@@ -3,10 +3,11 @@ import { describe, expect, it } from 'vitest'
 import App from './App'
 
 describe('App', () => {
-  it('renders the M0 baseline', () => {
+  it('renders the metronome home', () => {
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: 'StayOnBeat' })).toBeInTheDocument()
-    expect(screen.getByText(/M0 工程基线已就绪/)).toBeInTheDocument()
+    expect(screen.getByText('120')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '开始' })).toBeInTheDocument()
+    expect(screen.getAllByTestId('beat-light')).toHaveLength(4)
   })
 })

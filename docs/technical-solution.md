@@ -1,6 +1,6 @@
 # StayOnBeat 技术方案
 
-> 状态：草案 v0.2（仅文档，暂不编码）
+> 状态：v0.3（M1 已实现，后续里程碑待推进）
 > 参考站点：https://metronome-online.com/zh
 > 产品定位：面向无法在工作时间练琴的用户的“在线节奏训练器”，在节拍器基础上增加键盘/鼠标点击匹配与即时评分。
 
@@ -30,7 +30,7 @@
 
 从 `metronome-online.com/zh` 提取的核心功能：
 
-- BPM 数值显示，范围 1–240，支持滑块与 +/- 按钮。
+- BPM 数值显示，范围 1–240，支持滑块与 +/- 按钮，并显示速度术语（Largo/Adagio/Andante/Moderato/Allegro/Presto）。
 - 每小节节拍数：1–12，默认 4。
 - “压力第一拍”重音开关。
 - 计时器：分钟/秒，到点自动停止。
@@ -38,6 +38,8 @@
 - Tap BPM：手动点击估算速度。
 - 开始/停止按钮。
 - 亮/暗模式、全屏模式。
+- 声音风格选择（MVP 仅提供声音开关与音量，不实现多音色）。
+- 440Hz 校音音（MVP 不实现，列为后续可选项）。
 - 大量 BPM 快捷入口与说明内容。
 
 StayOnBeat 需要保留上述基础体验，并把“点击 BPM / 节拍器”升级为“训练模式 + 实时评分”。
@@ -79,8 +81,8 @@ flowchart LR
 
 ### 5.1 模块职责
 
-- `MetronomeEngine`：管理 BPM、拍号、细分、计时器、启动/停止、节拍序号和预期节拍时间序列。
-- `AudioEngine`：封装 `AudioContext`、lookahead 调度、重音与非重音音色、音量、静音。
+- `MetronomeEngine`：拥有 lookahead 调度循环（约 25ms refill timer + while 预排），管理 BPM、拍号、细分、计时器、启动/停止，维护 `nextNoteTime`/`beatIndex`/`firstBeatTime`/预期节拍时间序列，并暴露 `beatIndexAtAudioTime()` 供视觉层读取。
+- `AudioEngine`：纯发声层。封装 `AudioContext` 生命周期（惰性创建、用户手势解锁、`closed` 重建）、`scheduleBeat(audioTime, { accent })` 在音频时间线上排振荡器、重音与非重音音色、音量、静音；不感知拍号/速度。
 - `InputEngine`：监听键盘、鼠标/触摸事件，统一为“一次用户点击”，做去重和防抖。
 - `ScoringEngine`：把点击时间与预期节拍时间对齐，产出判定、连击、准确率、早期/晚期偏差。
 - `SessionStore`：管理单次训练会话，汇总结果。
@@ -100,6 +102,8 @@ flowchart LR
 4. 每次 tick 时，把未来 `nextNoteTime` 到 `currentTime + scheduleAheadTime` 之间的所有节拍一次性安排进音频时间线。
 5. 每个节拍用 OscillatorNode 或 AudioBufferSourceNode 发声，并在视觉层记录该节拍的预期时间。
 6. `scheduleAheadTime` 建议 0.1–0.15s，兼顾调度稳定与低延迟。
+
+说明：上述调度循环由 `MetronomeEngine` 拥有（维护 `nextNoteTime`/`beatIndex`/节拍序列），`AudioEngine` 只提供 `scheduleBeat(audioTime, { accent })` 把单个节拍排进音频时间线；二者合起来即完整的 lookahead scheduler。M1 阶段即按此拆分落地。
 
 伪代码：
 

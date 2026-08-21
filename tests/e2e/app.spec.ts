@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test'
 
-test('renders the StayOnBeat M0 baseline', async ({ page }) => {
+test('renders the StayOnBeat metronome home', async ({ page }) => {
   await page.goto('/')
 
-  await expect(page.getByRole('heading', { name: 'StayOnBeat' })).toBeVisible()
-  await expect(page.getByText(/M0 工程基线已就绪/)).toBeVisible()
+  await expect(page.getByText('120')).toBeVisible()
+  await expect(page.getByRole('button', { name: '开始' })).toBeVisible()
+  await expect(page.getByTestId('beat-light')).toHaveCount(4)
 })

@@ -1,7 +1,7 @@
 # StayOnBeat 开发计划
 
-> 状态：草案 v0.1（仅文档，暂不编码）
-> 依赖基线：`docs/product-design.md` v0.2、`docs/technical-solution.md` v0.2
+> 状态：v0.2（M1 节拍器核心已实现并验证，M2 待推进）
+> 依赖基线：`docs/product-design.md` v0.3、`docs/technical-solution.md` v0.3
 > 更新规则：需求、架构或范围变化时，先更新产品和/或技术文档，再更新本计划。
 
 ## 1. 计划目标
@@ -65,6 +65,8 @@
 
 ### 5.2 M1：节拍器核心
 
+> 详细任务拆解见 §5.2.1–5.2.4。模块接口以 `docs/technical-solution.md` §5.1/§6 为准（M1 细化裁决：lookahead 调度循环归 `MetronomeEngine`，`AudioEngine` 为纯发声层）。
+
 - [ ] 实现 `AudioContext` 生命周期管理和用户手势解锁。
 - [ ] 实现 lookahead scheduler，不用 `setInterval` 驱动发声。
 - [ ] 实现 BPM 1–240、默认 120，+/- 与滑块调整。
@@ -73,11 +75,77 @@
 - [ ] 实现视觉拍点灯与当前拍高亮。
 - [ ] 实现开始/停止按钮。
 
-**验收**
+#### 5.2.1 任务拆解
 
-- 60–180 BPM 下连续播放 5 分钟，人耳/自动化记录无明显断拍。
-- 切换 BPM、拍号后，下一轮从第一拍正确开始。
-- 浏览器必须通过用户手势后才能发声。
+| ID | 任务标题 | 说明 | 主要文件（新建/改） | 依赖 | 每任务验收 |
+| --- | --- | --- | --- | --- | --- |
+| M1.1 | ✅ 节拍常量与节奏计算 | `MIN/MAX/DEFAULT_BPM`、`MIN/MAX/DEFAULT_BEATS_PER_BAR`、`SubdivisionFactor`（M1 固定为 1）；`secondsPerBeat`、`secondsPerSubdivision`、`clampBpm`、`clampBeatsPerBar`、`tempoMarking`（120→Moderato）。 | `src/lib/tempo.ts`、`src/lib/tempo.test.ts` | — | 边界断言：`secondsPerBeat(120)=0.5`、`clampBpm(0)=1`、`clampBpm(241)=240`、`tempoMarking(120)=Moderato`。 |
+| M1.2 | ✅ 音频↔性能时钟桥 | `createClockBridge()`/应用单例；`calibrate(ctx)` 记录 epoch；`audioToPerfMs`/`perfMsToAudio` 互为反函数；`getOutputTimestamp` 可选增强。 | `src/lib/clock.ts`、`src/lib/clock.test.ts` | — | 往返换算误差 < 1e-9；无 `getOutputTimestamp` 时走回退路径不抛错。 |
+| M1.3 | ✅ AudioContext 生命周期与节拍发声 | `ensureContext()`（惰性创建、幂等、`closed` 重建）、`resume()`、`scheduleBeat(audioTime, { accent })`（accent 1760Hz/普通 880Hz，sine + 短包络，返回 `stop()` 句柄）、`setVolume(0..1)`、`dispose()`；注入 `createAudioContext` 便于测试。 | `src/engine/audioEngine.ts`、`src/engine/audioEngine.test.ts` | M1.1（弱） | 重音/普通频率正确；`ensureContext` 幂等、`dispose` 后重建；音量夹取 0–1。 |
+| M1.4 | ✅ lookahead 调度与节拍序列 | 常量 `SCHEDULER_TICK_MS=25`、`SCHEDULE_AHEAD_S=0.12`、`START_LEAD_S=0.06`；`start()` 在点击调用栈内同步 `ensureContext()` + `await resume()`，再校准时钟桥；`tick()` while 预排 `nextNoteTime`；`stop()` 清 timer + flush pending + suspend；播放中改 BPM/拍号走 `restartRound()`（flush 已排节点 + 从第 1 拍重排）；`beatIndexAtAudioTime(audioNow)`。 | `src/engine/metronomeEngine.ts`、`src/engine/metronomeEngine.test.ts` | M1.1、M1.3 | 已排节拍均 < `currentTime + 0.12` 且相邻间距恒为 `secondsPerBeat`；accent 仅 index 0；`stop()` 撤销全部 pending；播放中改速后从第 1 拍重排。 |
+| M1.5 | ✅ Zustand 节拍器状态与动作 | 状态 `bpm/beatsPerBar/accentFirstBeat/isPlaying/currentBeat`；动作 `start/stop/setBpm/setBeatsPerBar/setAccentFirstBeat/_setCurrentBeat`；导出工厂 `createMetronomeStore(deps)` 注入假引擎、`INITIAL_STATE`、`resetMetronomeStore()`。 | `src/store/useMetronomeStore.ts`、`src/store/useMetronomeStore.test.ts` | M1.3、M1.4 | 默认值 120/4/true/false/-1；`setBpm(999)=240`；`start/stop` 委托引擎并翻转 `isPlaying`。 |
+| M1.6 | ✅ 视觉脉冲与主显示 | `useBeatPulse()`：rAF 每帧 `perfMsToAudio(performance.now())` → `beatIndexAtAudioTime` → 写 `currentBeat`，卸载/停止时 cancel；`MetronomeDisplay`：BPM 大数字（tabular-nums）+ 速度术语 + 拍点灯（当前拍高亮、第 0 拍重音放大）。 | `src/hooks/useBeatPulse.ts`、`src/components/MetronomeDisplay.tsx`、`src/components/MetronomeDisplay.test.tsx` | M1.2、M1.5 | 灯数 = `beatsPerBar`；`data-active`/`aria-current`；卸载后不写 state（无告警）。 |
+| M1.7 | ✅ 控件与接线 | `TempoControls`（滑块 + `-`/`+`）、`BeatSettings`（拍号 1–12 + 重音开关）、`TransportControls`（开始/停止，点击即手势）；`App.tsx` 替换 M0 占位。 | `src/components/TempoControls.tsx`、`src/components/BeatSettings.tsx`、`src/components/TransportControls.tsx` 及各自测试、`src/App.tsx`、`src/App.test.tsx` | M1.5、M1.6 | 滑块/± 改 BPM 且边界禁用；开始/停止随 `isPlaying` 切换；页面可交互、点击「开始」后有声音且拍灯闪烁。 |
+| M1.8 | ✅ 集成验收与 E2E | 补齐组件测试；新增 `tests/e2e/metronome.spec.ts`；展开本小节并勾选完成。 | `tests/e2e/metronome.spec.ts`、`docs/development-plan.md` | M1.7 | 测试/构建/lint 全绿；E2E 已编写待浏览器环境执行；本小节验收清单勾选。 |
+
+#### 5.2.2 任务依赖图
+
+```mermaid
+flowchart LR
+    M1.1 --> M1.4
+    M1.3 --> M1.4
+    M1.2 --> M1.6
+    M1.4 --> M1.5
+    M1.5 --> M1.6
+    M1.5 --> M1.7
+    M1.6 --> M1.7
+    M1.7 --> M1.8
+```
+
+#### 5.2.3 模块接口概览
+
+签名简列，实现细节以任务为准：
+
+```ts
+// src/lib/tempo.ts
+secondsPerBeat(bpm: number): number
+secondsPerSubdivision(bpm: number, subdivision?: 1 | 2 | 3 | 4): number
+clampBpm(value: number): number          // 取整 + 夹取 1–240
+clampBeatsPerBar(value: number): number  // 整数 1–12
+tempoMarking(bpm: number): { zh: string; en: string }
+
+// src/lib/clock.ts
+createClockBridge(): AudioClockBridge     // calibrate(ctx); audioToPerfMs(t); perfMsToAudio(t)
+// 应用单例：audioClockBridge
+
+// src/engine/audioEngine.ts
+createAudioEngine(opts?): AudioEngine
+// AudioEngine: ensureContext(); resume(); suspend();
+//   scheduleBeat(audioTime, { accent }): { stop(): void }; setVolume(0..1); dispose()
+
+// src/engine/metronomeEngine.ts
+createMetronomeEngine(audioEngine): MetronomeEngine
+// MetronomeEngine: start(); stop(); setBpm(); setBeatsPerBar(); setAccentFirstBeat();
+//   isPlaying(); beatIndexAtAudioTime(audioNow): number; getConfig();
+//   resumeAfterBackground(); dispose()
+
+// src/store/useMetronomeStore.ts
+createMetronomeStore(deps?): store       // 测试注入假引擎
+useMetronomeStore                          // 应用单例（模块顶层创建引擎后导出）
+INITIAL_STATE; resetMetronomeStore()
+
+// src/hooks/useBeatPulse.ts
+useBeatPulse(): void                      // rAF 循环驱动 currentBeat
+```
+
+#### 5.2.4 M1 集成验收
+
+- [ ] 60–180 BPM 前台连续播放 5 分钟无断拍（需真实浏览器/音频环境人工验收；调度稳定性已由单测锁定）。
+- [x] 播放中改 BPM/拍号后，下一轮从第 1 拍开始。（单测覆盖）
+- [x] 首次发声必须由用户手势触发（Start 点击）。（ensureContext 在点击调用栈内同步执行；组件测试覆盖开始/停止切换）
+- [x] 后台切回前台若断拍，`resumeAfterBackground()` 重校准时钟桥并从第 1 拍恢复。（单测覆盖）
+
+执行命令：`pnpm test` / `pnpm test:e2e` / `pnpm build` / `pnpm lint`。E2E 因当前环境无 Playwright 浏览器且下载被网络策略阻断，未在本机执行（见 §11 风险）。
 
 ### 5.3 M2：设置与体验
 
@@ -195,6 +263,8 @@ M5 发布准备
 | E2E | Playwright | 完整训练流程、设置持久化、历史记录 |
 | 性能 | 浏览器 DevTools/脚本 | 调度抖动、长时运行、后台恢复 |
 
+M1 阶段测试重点：tempo 计算边界、时钟桥换算、lookahead 节拍序列生成、transport 状态机、audioEngine 发声参数；使用 `src/test/fakeAudioContext.ts` 提供确定性 mock（`vi.fn()` 组合假 `AudioContext`，配合 `vi.useFakeTimers()` 手动推进 `currentTime`）。
+
 测试数据建议：
 
 - BPM：30、60、120、180、240。
@@ -255,6 +325,7 @@ M5 发布准备
 ## 12. 进度管理
 
 - 以里程碑为检查点，不以“开发中”代替完成。
+- M1 起按 §5.2.1 任务表逐条推进，每条完成即勾选并跑相关测试。
 - 每周或每轮集中更新一次任务状态、风险和下一里程碑目标。
 - 每完成一个里程碑，更新本文件的任务勾选状态并记录实际耗时。
 - 若出现连续阻塞，回到 `AGENTS.md` 或产品/技术文档确认决策。
@@ -272,7 +343,7 @@ MVP 发布后观察：
 
 ## 14. 下一步行动
 
-1. 确认技术栈与里程碑排期。
-2. 启动 M0：初始化工程与工具链。
-3. 完成 M1 后演示稳定节拍器。
-4. 根据 M1 实测调度抖动，评估是否需要提前引入校准能力。
+1. M0 与 M1 已完成：工程与工具链就绪，节拍器核心（BPM/拍号/重音、lookahead 调度、开始/停止、视觉拍灯、后台恢复）落地，§5.2.1 任务表 M1.1–M1.8 全部勾选。
+2. 剩余验收：在真实浏览器完成 5 分钟连续播放与 E2E（本机缺 Playwright 浏览器）。
+3. 下一里程碑 M2 设置与体验：细分、计时器、Tap BPM、亮暗主题、全屏、静音/仅视觉。
+4. 根据 M1 实测调度抖动，评估是否提前引入校准能力。

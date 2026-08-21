@@ -12,6 +12,7 @@
 
 - [产品与交互设计](docs/product-design.md)
 - [技术方案](docs/technical-solution.md)
+- [开发计划](docs/development-plan.md)
 - [AI 协作规范](AGENTS.md)
 - [AI 代理协作指南](docs/ai-agent-guide.md)
 

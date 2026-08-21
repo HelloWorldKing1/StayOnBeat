@@ -20,6 +20,7 @@ StayOnBeat 是一个**在线节奏训练器**：
 
   - `docs/product-design.md` — 产品与交互设计
   - `docs/technical-solution.md` — 技术方案
+  - `docs/development-plan.md` — 开发计划与里程碑
   - `docs/ai-agent-guide.md` — AI 协作流程与验收清单
 
 ## 3. 目录结构
@@ -31,6 +32,7 @@ StayOnBeat/
 ├── docs/
 │   ├── product-design.md
 │   ├── technical-solution.md
+│   ├── development-plan.md
 │   └── ai-agent-guide.md
 └── .idea/                  # IDE 配置，不参与业务实现
 ```
@@ -116,5 +118,6 @@ StayOnBeat/
 
 - 所有文档用中文编写。
 - 文档版本采用 `v0.1` 起递增，`docs/product-design.md` 和 `docs/technical-solution.md` 顶部保持同步状态。
+- 开发计划 `docs/development-plan.md` 与产品/技术文档保持同源；里程碑任务完成后同步勾选状态。
 - 重大方向调整需在 `docs/ai-agent-guide.md` 的“决策记录”追加一条。
 - README 只负责导航，不重复正文细节。

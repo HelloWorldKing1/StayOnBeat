@@ -49,14 +49,14 @@
 
 ## 5. 任务拆解
 
-### 5.1 M0：基线冻结
+### 5.1 M0：基线冻结（已完成）
 
-- [ ] 确认 React + TypeScript + Vite + Tailwind + Zustand 技术栈。
-- [ ] 初始化最小可运行工程，配置 ESLint、Prettier、TypeScript 严格模式。
-- [ ] 配置 Vitest 与 Testing Library。
-- [ ] 配置 Playwright 基础工程。
-- [ ] 建立目录边界：`engine/`、`store/`、`components/`、`lib/`、`test/`。
-- [ ] 锁定文档版本，更新 README 和 AGENTS。
+- [x] 确认 React + TypeScript + Vite + Tailwind + Zustand 技术栈。
+- [x] 初始化最小可运行工程，配置 ESLint、Prettier、TypeScript 严格模式。
+- [x] 配置 Vitest 与 Testing Library。
+- [x] 配置 Playwright 基础工程。
+- [x] 建立目录边界：`engine/`、`store/`、`components/`、`lib/`、`test/`。
+- [x] 锁定文档版本，更新 README 和 AGENTS。
 
 **验收**
 
@@ -276,4 +276,3 @@ MVP 发布后观察：
 2. 启动 M0：初始化工程与工具链。
 3. 完成 M1 后演示稳定节拍器。
 4. 根据 M1 实测调度抖动，评估是否需要提前引入校准能力。
-

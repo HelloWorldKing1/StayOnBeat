@@ -1,19 +1,80 @@
 @import 'tailwindcss';
 
+/* 主题 token：默认暗色（产品设计），亮色通过 [data-theme='light'] 覆盖 */
 :root {
+  color-scheme: dark;
+  --bg: #21232f;
+  --panel: #282b3e;
+  --text-primary: #ffffff;
+  --text-secondary: #75798d;
+  --text-secondary-soft: rgba(117, 121, 141, 0.4);
+  --border: rgba(255, 255, 255, 0.2);
+  --primary: #eb825a;
+  --primary-soft: rgba(235, 130, 90, 0.4);
+  --danger: #e45756;
   font-family:
     -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI',
     sans-serif;
-  color: #1f2430;
-  background: #f5f7fb;
+  color: var(--text-primary);
+  background: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --panel: #ffffff;
+  --text-primary: #1f2430;
+  --text-secondary: #75798d;
+  --text-secondary-soft: rgba(117, 121, 141, 0.25);
+  --border: rgba(31, 36, 48, 0.15);
+  --primary: #eb825a;
+  --primary-soft: rgba(235, 130, 90, 0.25);
+  --danger: #e45756;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+}
+
+/* 子拍脉动（M2.7 由活跃拍灯触发，animation-duration 由组件内联覆盖） */
+@keyframes beat-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.25);
+  }
+}
+
+.beat-pulse {
+  animation: beat-pulse 0.5s ease-out infinite;
+}
+
+/* 静音/仅视觉时屏幕边缘呼吸光 */
+@keyframes screen-glow {
+  0%,
+  100% {
+    opacity: 0.12;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.screen-glow {
+  animation: screen-glow 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beat-pulse,
+  .screen-glow {
+    animation: none;
+  }
 }

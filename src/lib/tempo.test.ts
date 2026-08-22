@@ -6,10 +6,12 @@ import {
   MAX_BPM,
   MIN_BEATS_PER_BAR,
   MIN_BPM,
+  SUBDIVISIONS,
   clampBeatsPerBar,
   clampBpm,
   secondsPerBeat,
   secondsPerSubdivision,
+  subdivisionLabel,
   tempoMarking,
 } from './tempo'
 
@@ -24,6 +26,19 @@ describe('tempo 常量', () => {
     expect(MIN_BEATS_PER_BAR).toBe(1)
     expect(MAX_BEATS_PER_BAR).toBe(12)
     expect(DEFAULT_BEATS_PER_BAR).toBe(4)
+  })
+
+  it('细分档位为 1–4', () => {
+    expect(SUBDIVISIONS).toEqual([1, 2, 3, 4])
+  })
+})
+
+describe('subdivisionLabel', () => {
+  it('四档细分均有中英文标签', () => {
+    expect(subdivisionLabel(1)).toEqual({ zh: '四分', en: 'Quarter' })
+    expect(subdivisionLabel(2)).toEqual({ zh: '八分', en: 'Eighth' })
+    expect(subdivisionLabel(3)).toEqual({ zh: '三连音', en: 'Triplet' })
+    expect(subdivisionLabel(4)).toEqual({ zh: '十六分', en: 'Sixteenth' })
   })
 })
 

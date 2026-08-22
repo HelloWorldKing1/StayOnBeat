@@ -12,7 +12,7 @@ export function TempoControls() {
         aria-label="降低 BPM"
         disabled={bpm <= MIN_BPM}
         onClick={() => setBpm(bpm - 1)}
-        className="h-9 w-9 rounded-full border border-white/20 disabled:opacity-40"
+        className="h-9 w-9 rounded-full border border-[var(--border)] disabled:opacity-40"
       >
         −
       </button>
@@ -31,7 +31,7 @@ export function TempoControls() {
         aria-label="提高 BPM"
         disabled={bpm >= MAX_BPM}
         onClick={() => setBpm(bpm + 1)}
-        className="h-9 w-9 rounded-full border border-white/20 disabled:opacity-40"
+        className="h-9 w-9 rounded-full border border-[var(--border)] disabled:opacity-40"
       >
         +
       </button>

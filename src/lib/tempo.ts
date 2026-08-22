@@ -8,8 +8,28 @@ export const MIN_BEATS_PER_BAR = 1
 export const MAX_BEATS_PER_BAR = 12
 export const DEFAULT_BEATS_PER_BAR = 4
 
-/** 细分因子：1=四分，2=八分，3=三连音，4=十六分。M1 阶段固定为 1，类型先定义供 M2 使用。 */
+/** 细分因子：1=四分，2=八分，3=三连音，4=十六分。 */
 export type SubdivisionFactor = 1 | 2 | 3 | 4
+
+/** 可选的细分档位（M2 起用于细分选择）。 */
+export const SUBDIVISIONS: readonly SubdivisionFactor[] = [1, 2, 3, 4]
+
+export interface SubdivisionLabel {
+  zh: string
+  en: string
+}
+
+const SUBDIVISION_LABELS: Record<SubdivisionFactor, SubdivisionLabel> = {
+  1: { zh: '四分', en: 'Quarter' },
+  2: { zh: '八分', en: 'Eighth' },
+  3: { zh: '三连音', en: 'Triplet' },
+  4: { zh: '十六分', en: 'Sixteenth' },
+}
+
+/** 细分档位的中英文标签。 */
+export function subdivisionLabel(sub: SubdivisionFactor): SubdivisionLabel {
+  return SUBDIVISION_LABELS[sub]
+}
 
 export interface TempoMarking {
   zh: string

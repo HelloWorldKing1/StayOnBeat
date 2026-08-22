@@ -1,6 +1,6 @@
 # StayOnBeat 开发计划
 
-> 状态：v0.2（M1 节拍器核心已实现并验证，M2 待推进）
+> 状态：v0.3（M1 与 M2 已实现并验证，M3 待推进）
 > 依赖基线：`docs/product-design.md` v0.3、`docs/technical-solution.md` v0.3
 > 更新规则：需求、架构或范围变化时，先更新产品和/或技术文档，再更新本计划。
 
@@ -149,20 +149,110 @@ useBeatPulse(): void                      // rAF 循环驱动 currentBeat
 
 ### 5.3 M2：设置与体验
 
-- [ ] 实现细分：四分、八分、三连音、十六分。
-- [ ] 实现计时器：15s/30s/60s/120s 快捷与自定义，到点自动停止。
-- [ ] 实现 Tap BPM：至少 4 次点击估算 BPM，并同步到主控区。
-- [ ] 实现亮/暗主题，默认暗色。
-- [ ] 实现全屏视图。
-- [ ] 实现静音/仅视觉节拍，静音时视觉提示增强。
-- [ ] 实现用户设置本地持久化。
+> 详细任务拆解见 §5.3.1–5.3.4。模块接口以 `docs/technical-solution.md` §5.1/§6/§8/§10 为准（M2 关键裁决：`beatIndexAtAudioTime` 保持拍语义并新增 `subdivisionIndexAtAudioTime`；静音仍建 AudioContext 驱动时钟但 `scheduleBeat` 零节点；主题用 CSS 变量 + `data-theme`；设置用 zustand persist；计时器归引擎音频时钟）。
 
-**验收**
+- [x] 实现细分：四分、八分、三连音、十六分。
+- [x] 实现计时器：15s/30s/60s/120s 快捷与自定义，到点自动停止。
+- [x] 实现 Tap BPM：至少 4 次点击估算 BPM，并同步到主控区。
+- [x] 实现亮/暗主题，默认暗色。
+- [x] 实现全屏视图。
+- [x] 实现静音/仅视觉节拍，静音时视觉提示增强。
+- [x] 实现用户设置本地持久化。
 
-- 细分与拍号组合下，重音和预期节拍密度符合产品定义。
-- 计时器到点停止，无残留音频。
-- 刷新页面后 BPM、主题、静音等设置恢复。
-- 静音模式下视觉脉冲仍能支持完整训练。
+#### 5.3.1 任务拆解
+
+| ID | 任务标题 | 说明 | 主要文件（新建/改） | 依赖 | 每任务验收 |
+| --- | --- | --- | --- | --- | --- |
+| M2.1 | ✅ 细分常量与标签 | `tempo.ts` 增 `SUBDIVISIONS: readonly SubdivisionFactor[] = [1,2,3,4]`、`subdivisionLabel(sub)`（1 四分/Quarter、2 八分/Eighth、3 三连音/Triplet、4 十六分/Sixteenth）；复用已有 `secondsPerSubdivision`。 | `src/lib/tempo.ts`、`src/lib/tempo.test.ts` | — | `subdivisionLabel(1).zh='四分'`；`subdivisionLabel(4).en='Sixteenth'`；`secondsPerSubdivision(120,3)≈0.1667`。 |
+| M2.2 | ✅ 细分音色与静音无操作 | `audioEngine.scheduleBeat` 增 `soft` 选项（非拍头子拍 1320Hz、峰值音量 ×0.6）；`setMuted(muted)` 使 `scheduleBeat` 返回空句柄、不创建任何节点；`isMuted()`。 | `src/engine/audioEngine.ts`、`src/engine/audioEngine.test.ts` | M2.1 | 重音 1760Hz / 拍头 880Hz / soft 1320Hz×0.6；muted 后 `createOscillator` 不被调用、`scheduleBeat` 仍返回可调 `{stop}`。 |
+| M2.3 | ✅ 细分调度与子拍相位 | `MetronomeConfig` 增 `subdivision`（默认 1）；`tick()` 按 `secondsPerSubdivision` 推进 `subIndex/beatIndex`，accent 仅小节首拍头、soft 标记非拍头；`setSubdivision()` 播放中 `restartRound()`；新增 `subdivisionIndexAtAudioTime()`；`beatIndexAtAudioTime()` 保持按拍返回。 | `src/engine/metronomeEngine.ts`、`src/engine/metronomeEngine.test.ts` | M2.1、M2.2 | subdivision=2 时相邻排拍间距=0.25s（120BPM）、accent 仅 index0、其余 soft=true；`beatIndexAtAudioTime` 与 M1 结果一致；`subdivisionIndexAtAudioTime` 在 0..sub-1。 |
+| M2.4 | ✅ 计时器与自动停止 | config 增 `timerSeconds`（默认 60，`null`=无限）；start/`restartRound()` 计算 `endAudioTime`；tick 越界停排、清 interval、置 `playing=false`、触发 `setOnStopped()`；到点不 flush、不 suspend；`setTimerSeconds()` 播放中 `restartRound()`。 | `src/engine/metronomeEngine.ts`、`src/engine/metronomeEngine.test.ts` | M2.3 | 到点后不再 `scheduleBeat`、`isPlaying()=false`、回调触发；最后排拍未被 `stop()`；`suspend` 未被调用；`timerSeconds=null` 持续不停止。 |
+| M2.5 | ✅ 设置状态与本地持久化 | store 新增 `subdivision/timerSeconds/muted/volume/theme/currentSubdivision` 及动作（委托引擎/audioEngine）；`createMetronomeStore(deps, opts?:{persist?,storage?})`，单例开 persist（key `stayonbeat-settings`，version 1，partialize 仅设置子集）；onRehydrate 同步主题到 DOM；`resetMetronomeStore` 兼容；test setup 加 `localStorage.clear()`。 | `src/store/useMetronomeStore.ts`、`src/store/useMetronomeStore.test.ts`、`src/test/setup.ts` | M2.3、M2.4 | 动作委托正确；persist 写/读（注入内存 storage）；partialize 不含瞬态字段；单例默认 `muted=true`、`volume=0.5`、`theme='dark'`。 |
+| M2.6 | ✅ 主题、顶栏、全屏与设置抽屉 | `index.css` 用 CSS 变量 + `data-theme`（`:root` 默认暗色）；迁移现有组件硬编码色到 `var(--*)`；`useFullscreen`；`TopBar`（主题/全屏/静音/设置入口）；`SettingsDrawer`（音量滑块 + 静音 + 主题）；`setTheme` 同步 `documentElement.dataset.theme`。 | `src/index.css`、`src/App.tsx`、`src/components/TopBar.tsx`、`src/components/SettingsDrawer.tsx`、`src/hooks/useFullscreen.ts` 及测试、各组件色值迁移 | M2.5 | 切换主题后 DOM 属性变化且持久化；全屏 toggle/不支持时禁用；音量夹取 0–1；刷新无闪白。 |
+| M2.7 | ✅ 静音视觉增强与子拍视觉 | `useBeatPulse` 同时写 `_setCurrentSubdivision`（读 `engine.subdivisionIndexAtAudioTime`）；`MetronomeDisplay` 活跃拍灯按子拍脉动（inline `animation-duration=secondsPerSubdivision*1000ms`）、加 `data-current-sub`/`data-muted`、静音徽标「仅视觉」；App 静音时屏幕边缘呼吸光（`aria-hidden`）；`prefers-reduced-motion` 关动画。 | `src/hooks/useBeatPulse.ts`、`src/components/MetronomeDisplay.tsx`、`src/App.tsx`、`src/index.css` | M2.5、M2.3 | 静音下 `data-muted=true` 且 `data-current-sub` 随子拍变化；呼吸光随 muted 出现/消失；动画时长与子拍一致；reduced-motion 无动画。 |
+| M2.8 | ✅ Tap BPM | `src/lib/tapTempo.ts` `estimateTapTempo(times, minTaps=4)`（中位数 + 过滤 200–3000ms + `clampBpm`）；`useTapTempo`（`taps/estimatedBpm/onTap/reset`，gap>2500ms 重置）；`TapTempo` 组件（点击计数、≥4 显示估算、应用→`store.setBpm`、重置）。 | `src/lib/tapTempo.ts`、`src/lib/tapTempo.test.ts`、`src/hooks/useTapTempo.ts`、`src/components/TapTempo.tsx` | M2.5 | ≥4 次估算并 clamp；抖动样本取中位数；<4 返回 null；gap 超时重置；应用后 `store.bpm` 更新。 |
+| M2.9 | ✅ PatternSettings/计时器 UI 与集成、E2E、文档 | `PatternSettings`（拍号/重音/细分/计时器 15/30/60/120/自定义 1–3600/无限）取代 `BeatSettings`（保留 `每小节拍数` aria-label）；App 接线 TopBar/Display/Transport/Tempo/PatternSettings/TapTempo/SettingsDrawer；E2E 补充；展开本节并同步 technical-solution/ai-agent-guide；勾选完成。 | `src/components/PatternSettings.tsx`(+test)、`src/App.tsx`、`tests/e2e/*`、`docs/*.md` | M2.5–M2.8 | 细分/计时器控件联动 store 与引擎；E2E：细分切换、2s 计时到点停止、主题刷新持久化、Tap BPM、静音徽标；测试/构建/lint 全绿；文档勾选。 |
+
+#### 5.3.2 任务依赖图
+
+```mermaid
+flowchart LR
+    M2.1 --> M2.3
+    M2.2 --> M2.3
+    M2.3 --> M2.4
+    M2.3 --> M2.5
+    M2.4 --> M2.5
+    M2.3 --> M2.7
+    M2.5 --> M2.6
+    M2.5 --> M2.7
+    M2.5 --> M2.8
+    M2.6 --> M2.9
+    M2.7 --> M2.9
+    M2.8 --> M2.9
+```
+
+#### 5.3.3 模块接口概览
+
+签名简列，实现细节以任务为准：
+
+```ts
+// src/lib/tempo.ts（新增）
+SUBDIVISIONS: readonly SubdivisionFactor[]          // [1, 2, 3, 4]
+subdivisionLabel(sub: SubdivisionFactor): { zh: string; en: string }
+// secondsPerSubdivision(bpm, subdivision) 已在 M1 提供
+
+// src/engine/audioEngine.ts（扩展）
+export const SUB_FREQ = 1320
+export const SUB_GAIN_RATIO = 0.6
+export interface BeatSoundOptions { accent: boolean; soft?: boolean }
+// AudioEngine 增: setMuted(muted: boolean); isMuted(): boolean
+// muted=true 时 scheduleBeat 返回 { stop() {} }，不创建 osc/gain；start() 仍由引擎 ensureContext+resume
+
+// src/engine/metronomeEngine.ts（扩展）
+export interface MetronomeConfig {
+  bpm: number; beatsPerBar: number; accentFirstBeat: boolean
+  subdivision: SubdivisionFactor      // 默认 1
+  timerSeconds: number | null         // 默认 60；null = 无限
+}
+// MetronomeEngine 增: setSubdivision(sub); setTimerSeconds(sec);
+//   subdivisionIndexAtAudioTime(audioNow): number   // 0..subdivision-1；未播放返回 -1
+//   setOnStopped(cb: () => void)                    // 仅计时器到点自动停止时触发
+// tick() 按 secondsPerSubdivision 推进；排拍上界 min(currentTime+0.12, endAudioTime)
+// beatIndexAtAudioTime 保持拍语义（0..beatsPerBar-1）
+
+// src/store/useMetronomeStore.ts（扩展）
+createMetronomeStore(deps?, opts?: { persist?: boolean; storage?: StateStorage })
+// 状态新增: subdivision; timerSeconds; muted(默认 true); volume(默认 0.5);
+//   theme('dark'|'light', 默认 'dark'); currentSubdivision(-1)
+// 动作新增: setSubdivision; setTimerSeconds; setMuted; setVolume; setTheme; _setCurrentSubdivision
+// persist: name='stayonbeat-settings', version=1, partialize 仅 bpm/beatsPerBar/accentFirstBeat/
+//   subdivision/timerSeconds/muted/volume/theme
+
+// src/lib/tapTempo.ts（新建）
+estimateTapTempo(tapTimesMs: readonly number[], minTaps = 4): number | null
+
+// src/hooks/useTapTempo.ts（新建）
+useTapTempo(opts?): { taps; estimatedBpm; onTap(); reset() }
+
+// src/hooks/useFullscreen.ts（新建）
+useFullscreen(): { isFullscreen; toggle(); supported }
+
+// src/index.css（主题机制）
+// :root, :root[data-theme='dark'] 与 :root[data-theme='light'] 定义 --bg/--panel/--text-primary/
+// --text-secondary/--border/--primary/--primary-soft/--danger；组件用 bg-[var(--bg)] 等
+// @media (prefers-reduced-motion: reduce) { .beat-pulse, .screen-glow { animation: none } }
+```
+
+#### 5.3.4 M2 集成验收
+
+- [x] 细分 × 拍号组合下重音与节拍密度符合产品定义（单测：间距=`secondsPerSubdivision`、accent 仅小节首拍头）。
+- [x] 计时器到点自动停止、无残留音频（单测：停止排拍、不 suspend、回调触发；E2E 已编写待浏览器环境）。
+- [x] 刷新后 BPM/拍号/细分/计时器/主题/静音/音量恢复（persist 单测覆盖；E2E reload 已编写待执行）。
+- [x] 静音模式视觉脉冲完整支持训练（`data-muted` + 子拍脉动 + 边缘呼吸光；`prefers-reduced-motion` 关动画）。
+- [x] Tap BPM ≥4 次估算并同步主控。
+- [x] 亮/暗主题默认暗色、切换持久化、刷新无闪白。
+
+执行命令与 §5.2.4 相同（本机用 `node_modules/.bin/*` 运行 vitest/eslint/tsc/vite/playwright）。
 
 ### 5.4 M3：训练评分
 
@@ -265,6 +355,8 @@ M5 发布准备
 
 M1 阶段测试重点：tempo 计算边界、时钟桥换算、lookahead 节拍序列生成、transport 状态机、audioEngine 发声参数；使用 `src/test/fakeAudioContext.ts` 提供确定性 mock（`vi.fn()` 组合假 `AudioContext`，配合 `vi.useFakeTimers()` 手动推进 `currentTime`）。
 
+M2 阶段测试重点：细分间距与 soft 音色、`subdivisionIndexAtAudioTime`、计时器自动停止（到点不 flush/suspend、回调触发）、静音下 `scheduleBeat` 零节点但调度继续、`useTapTempo` 中位数估算、主题 `data-theme` 切换与持久化、`useFullscreen` 降级；E2E 补细分/计时器/持久化/Tap/静音徽标。
+
 测试数据建议：
 
 - BPM：30、60、120、180、240。
@@ -345,5 +437,6 @@ MVP 发布后观察：
 
 1. M0 与 M1 已完成：工程与工具链就绪，节拍器核心（BPM/拍号/重音、lookahead 调度、开始/停止、视觉拍灯、后台恢复）落地，§5.2.1 任务表 M1.1–M1.8 全部勾选。
 2. 剩余验收：在真实浏览器完成 5 分钟连续播放与 E2E（本机缺 Playwright 浏览器）。
-3. 下一里程碑 M2 设置与体验：细分、计时器、Tap BPM、亮暗主题、全屏、静音/仅视觉。
+3. M2 设置与体验已完成（细分、计时器、Tap BPM、亮暗主题、全屏、静音/仅视觉、设置持久化），§5.3.1 任务表 M2.1–M2.9 全部勾选。
+4. 下一里程碑 M3 训练评分：节拍器/训练模式切换、count-in、键盘/鼠标输入、动态判定窗口、实时匹配度与连击。
 4. 根据 M1 实测调度抖动，评估是否提前引入校准能力。

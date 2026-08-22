@@ -38,4 +38,28 @@ describe('MetronomeDisplay', () => {
       expect(light).toHaveAttribute('data-active', 'false')
     }
   })
+
+  it('静音时显示「仅视觉」徽标并标记 data-muted', () => {
+    useMetronomeStore.setState({ muted: true })
+    render(<MetronomeDisplay />)
+    expect(screen.getByText('仅视觉')).toBeInTheDocument()
+    expect(screen.getByLabelText('节拍器显示')).toHaveAttribute('data-muted', 'true')
+  })
+
+  it('data-current-sub 反映当前子拍序号', () => {
+    useMetronomeStore.setState({ currentSubdivision: 1 })
+    render(<MetronomeDisplay />)
+    expect(screen.getByLabelText('节拍器显示')).toHaveAttribute('data-current-sub', '1')
+  })
+
+  it('活跃拍灯带子拍脉动动画与时长', () => {
+    useMetronomeStore.setState({ beatsPerBar: 4, currentBeat: 2, subdivision: 2 })
+    render(<MetronomeDisplay />)
+
+    const lights = screen.getAllByTestId('beat-light')
+    const active = lights[2]
+    expect(active.className).toContain('beat-pulse')
+    // 120 BPM、sub=2 → 每子拍 0.25s
+    expect(active.style.animationDuration).toBe('250ms')
+  })
 })

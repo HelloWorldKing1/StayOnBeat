@@ -9,7 +9,7 @@ export function TransportControls() {
     <button
       type="button"
       onClick={stop}
-      className="rounded-full bg-[#E45756] px-8 py-3 font-semibold text-white"
+      className="rounded-full bg-[var(--danger)] px-8 py-3 font-semibold text-white"
     >
       停止
     </button>
@@ -17,7 +17,7 @@ export function TransportControls() {
     <button
       type="button"
       onClick={() => void start()}
-      className="rounded-full bg-[#EB825A] px-8 py-3 font-semibold text-white"
+      className="rounded-full bg-[var(--primary)] px-8 py-3 font-semibold text-white"
     >
       开始
     </button>

@@ -107,14 +107,15 @@ flowchart LR
 
 撤销未发声节拍：重排/停止时需撤销「已排入时间线但尚未开始」的节拍。Web Audio 中未 `start()` 的节点调 `stop()` 会抛 `InvalidStateError`，因此 `ScheduledBeat.stop()` 通过 `disconnect()` 断开节点连线来真正取消发声。
 
-伪代码：
+伪代码（M2 起按细分推进并含计时器上界）：
 
 ```text
 tick():
-  while nextNoteTime < audio.currentTime + scheduleAheadTime:
-    scheduleBeat(nextNoteTime, beatIndex)
-    publishExpectedBeat(beatIndex, nextNoteTime)
-    advance nextNoteTime by secondsPerBeat
+  endAudioTime = min(audio.currentTime + scheduleAheadTime, timerEnd)
+  while nextNoteTime < endAudioTime:
+    scheduleBeat(nextNoteTime, { accent: isBarStart, soft: isSubBeat })
+    publishExpectedBeat(barBeatIndex, nextNoteTime)
+    advance nextNoteTime by secondsPerSubdivision(bpm, subdivision)
 ```
 
 ### 6.2 时钟对齐
@@ -153,6 +154,8 @@ M1 视觉相位直接读 `ctx.currentTime`（与调度同源），不经时钟�
 - 仍由同一调度器生成预期节拍时间，驱动视觉脉冲。
 - 视觉脉冲应足够清晰，可用颜色、缩放、屏幕边缘呼吸提示辅助。
 - 用户开启声音后，使用 `volume` 恢复音频；可提供“轻点音”模式，仅点击时发出极短确认声。
+
+M2 落地：静音时 `start()` 仍在用户手势内 `ensureContext()+resume()`，以获得运行中的 `ctx.currentTime` 时钟驱动视觉（`currentAudioTime()` 不冻结）；`AudioEngine.scheduleBeat` 在 muted 时返回空句柄、不创建任何节点。静音视觉增强采用子拍脉动 + 屏幕边缘呼吸光（不依赖颜色），并在 `prefers-reduced-motion` 下关闭动画。
 
 ## 7. 匹配度与判定算法
 
@@ -240,6 +243,8 @@ accuracy = 100 * (sum of hit scores) / (total expected beats * 100)
 }
 ```
 
+M2 落地：设置子集（`bpm/beatsPerBar/accentFirstBeat/subdivision/timerSeconds/muted/volume/theme`）经 zustand `persist` 中间件写入 localStorage（key `stayonbeat-settings`，version 1）；`timerSeconds` 可为 `null`（无限，不自动停止）。瞬态字段（`mode/inputMode/calibrationMs` 及运行时状态）不持久化。
+
 ### 8.2 训练会话
 
 ```json
@@ -279,6 +284,8 @@ IDLE -> READY -> PLAYING -> STOPPED -> IDLE
 
 MVP 训练模式不做暂停，减少状态复杂度；计时器到点、用户点停止或中止均进入 Summary。节拍器模式不产生计分会话。
 
+节拍器模式 `PLAYING → STOPPED` 含计时器到点自动停止（引擎按 `endAudioTime` 越界停止排拍，不 flush、不 suspend，让窗口内最后几拍自然播完）。
+
 ## 10. 组件拆分草案
 
 - `MetronomeDisplay`：BPM 数字、拍点灯、当前拍。
@@ -291,6 +298,10 @@ MVP 训练模式不做暂停，减少状态复杂度；计时器到点、用户�
 - `SessionSummary`：结果面板与重试按钮。
 - `HistoryPanel`：历史成绩列表与统计。
 - `SettingsDrawer`：音量、主题、输入模式、校准。
+- `TopBar`：主题切换、全屏、静音、设置入口（M2）。
+- `TapTempo`：点击计数与 BPM 估算、应用（M2）。
+- `PatternSettings`：拍号、重音、细分、计时器（M2 起取代 M1 的 `BeatSettings`）。
+- `useFullscreen` / `useTapTempo`：全屏与 Tap 逻辑 hook（M2）。
 
 ## 11. 非功能需求
 

@@ -16,7 +16,9 @@ export function useBeatPulse(): void {
     const loop = () => {
       const audioNow = metronomeEngine.currentAudioTime()
       const beat = metronomeEngine.beatIndexAtAudioTime(audioNow)
+      const sub = metronomeEngine.subdivisionIndexAtAudioTime(audioNow)
       useMetronomeStore.getState()._setCurrentBeat(beat)
+      useMetronomeStore.getState()._setCurrentSubdivision(sub)
       rafId = requestAnimationFrame(loop)
     }
 

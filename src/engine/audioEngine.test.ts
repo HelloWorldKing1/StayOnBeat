@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   ACCENT_FREQ,
   BEAT_FREQ,
+  SUB_FREQ,
+  SUB_GAIN_RATIO,
   createAudioEngine,
   type AudioEngine,
 } from './audioEngine'
@@ -91,6 +93,47 @@ describe('createAudioEngine', () => {
     expect(beatGain.disconnect).toHaveBeenCalled()
     expect(osc.disconnect).toHaveBeenCalled()
     expect(() => beat.stop()).not.toThrow()
+  })
+
+  it('soft 子拍使用 SUB_FREQ 且音量按比例缩放', () => {
+    const fakeCtx = createFakeAudioContext()
+    const engine = makeEngine(fakeCtx)
+
+    engine.scheduleBeat(0, { accent: false, soft: true })
+    const osc = fakeCtx.createOscillator.mock.results[0].value
+    const beatGain = fakeCtx.createGain.mock.results[1].value
+
+    expect(osc.frequency.value).toBe(SUB_FREQ)
+    expect(beatGain.gain.exponentialRampToValueAtTime).toHaveBeenCalledWith(
+      0.5 * SUB_GAIN_RATIO,
+      0.002,
+    )
+  })
+
+  it('setMuted(true) 后 scheduleBeat 不创建任何节点', () => {
+    const fakeCtx = createFakeAudioContext()
+    const engine = makeEngine(fakeCtx)
+
+    engine.setMuted(true)
+    expect(engine.isMuted()).toBe(true)
+
+    const beat = engine.scheduleBeat(0, { accent: true })
+    expect(fakeCtx.createOscillator).not.toHaveBeenCalled()
+    expect(fakeCtx.createGain).not.toHaveBeenCalled()
+    expect(() => beat.stop()).not.toThrow()
+  })
+
+  it('取消静音后恢复发声', () => {
+    const fakeCtx = createFakeAudioContext()
+    const engine = makeEngine(fakeCtx)
+
+    engine.setMuted(true)
+    engine.scheduleBeat(0, { accent: false })
+    expect(fakeCtx.createOscillator).not.toHaveBeenCalled()
+
+    engine.setMuted(false)
+    engine.scheduleBeat(0, { accent: false })
+    expect(fakeCtx.createOscillator).toHaveBeenCalled()
   })
 
   it('dispose 后 ensureContext 重建新实例', async () => {

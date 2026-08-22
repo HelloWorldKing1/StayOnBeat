@@ -13,13 +13,13 @@ interface Harness {
   audioEngine: AudioEngine
   bridge: AudioClockBridge
   ctx: FakeCtx
-  scheduled: Array<{ time: number; accent: boolean }>
+  scheduled: Array<{ time: number; accent: boolean; soft?: boolean }>
   stoppedBeats: Array<{ stop: ReturnType<typeof vi.fn> }>
 }
 
 function createHarness(): Harness {
   const ctx: FakeCtx = { currentTime: 0, state: 'running' }
-  const scheduled: Array<{ time: number; accent: boolean }> = []
+  const scheduled: Array<{ time: number; accent: boolean; soft?: boolean }> = []
   const stoppedBeats: Array<{ stop: ReturnType<typeof vi.fn> }> = []
   const audioEngine = {
     context: ctx,
@@ -30,9 +30,9 @@ function createHarness(): Harness {
     suspend: vi.fn(async () => {
       ctx.state = 'suspended'
     }),
-    scheduleBeat: vi.fn((time: number, opts: { accent: boolean }) => {
+    scheduleBeat: vi.fn((time: number, opts: { accent: boolean; soft?: boolean }) => {
       const handle = { stop: vi.fn() }
-      scheduled.push({ time, accent: opts.accent })
+      scheduled.push({ time, accent: opts.accent, soft: opts.soft })
       stoppedBeats.push(handle)
       return handle
     }),
@@ -246,5 +246,173 @@ describe('createMetronomeEngine', () => {
       audioClockBridge: h.bridge,
     })
     expect(engine.currentAudioTime()).toBe(0)
+  })
+
+  it('subdivision=2 时按子拍间隔排拍，重音仅小节首拍，soft 标记子拍', async () => {
+    const h = createHarness()
+    const engine = createMetronomeEngine({
+      audioEngine: h.audioEngine,
+      audioClockBridge: h.bridge,
+    })
+    engine.setSubdivision(2)
+    await engine.start()
+
+    for (let i = 0; i < 60; i++) {
+      h.ctx.currentTime += 0.025
+      vi.advanceTimersByTime(25)
+    }
+
+    const times = h.scheduled.map((s) => s.time).sort((a, b) => a - b)
+    expect(times.length).toBeGreaterThanOrEqual(3)
+    for (let i = 1; i < times.length; i++) {
+      expect(times[i] - times[i - 1]).toBeCloseTo(0.25, 9)
+    }
+
+    const accents = h.scheduled.filter((s) => s.accent)
+    expect(accents).toHaveLength(1)
+    expect(accents[0].time).toBeCloseTo(0.06, 9)
+    expect(accents[0].soft).toBe(false)
+
+    // 拍头（0.56 = beat1 拍头）soft=false；子拍（0.31）soft=true
+    const head = h.scheduled.find((s) => Math.abs(s.time - 0.56) < 1e-6)
+    expect(head?.soft).toBe(false)
+    const sub = h.scheduled.find((s) => Math.abs(s.time - 0.31) < 1e-6)
+    expect(sub?.soft).toBe(true)
+  })
+
+  it('beatIndexAtAudioTime 在细分下仍按拍返回', async () => {
+    const h = createHarness()
+    const engine = createMetronomeEngine({
+      audioEngine: h.audioEngine,
+      audioClockBridge: h.bridge,
+    })
+    engine.setSubdivision(2)
+    await engine.start()
+
+    expect(engine.beatIndexAtAudioTime(0.06)).toBe(0)
+    expect(engine.beatIndexAtAudioTime(0.56)).toBe(1)
+    expect(engine.beatIndexAtAudioTime(1.06)).toBe(2)
+    expect(engine.beatIndexAtAudioTime(1.56)).toBe(3)
+  })
+
+  it('subdivisionIndexAtAudioTime 在子拍内循环', async () => {
+    const h = createHarness()
+    const engine = createMetronomeEngine({
+      audioEngine: h.audioEngine,
+      audioClockBridge: h.bridge,
+    })
+    engine.setSubdivision(2)
+    await engine.start()
+
+    expect(engine.subdivisionIndexAtAudioTime(0.05)).toBe(-1)
+    expect(engine.subdivisionIndexAtAudioTime(0.06)).toBe(0)
+    expect(engine.subdivisionIndexAtAudioTime(0.31)).toBe(1)
+    expect(engine.subdivisionIndexAtAudioTime(0.56)).toBe(0)
+    expect(engine.subdivisionIndexAtAudioTime(0.81)).toBe(1)
+  })
+
+  it('播放中 setSubdivision 会 flush 并从第 1 拍重排', async () => {
+    const h = createHarness()
+    const engine = createMetronomeEngine({
+      audioEngine: h.audioEngine,
+      audioClockBridge: h.bridge,
+    })
+    await engine.start()
+    for (let i = 0; i < 60; i++) {
+      h.ctx.currentTime += 0.025
+      vi.advanceTimersByTime(25)
+    }
+
+    const ctxBefore = h.ctx.currentTime
+    engine.setSubdivision(2)
+    expect(engine.getConfig().subdivision).toBe(2)
+
+    // flush：旧句柄全部 stop
+    for (const handle of h.stoppedBeats) {
+      expect(handle.stop.mock.calls.length).toBeGreaterThan(0)
+    }
+
+    // 下一 tick 从 ctxBefore + 0.06 以子拍间距重排
+    h.ctx.currentTime += 0.025
+    vi.advanceTimersByTime(25)
+    const newBeat = h.scheduled[h.scheduled.length - 1]
+    expect(newBeat.time).toBeCloseTo(ctxBefore + 0.06, 9)
+  })
+
+  it('计时器到点自动停止且不 flush、不 suspend', async () => {
+    const h = createHarness()
+    const engine = createMetronomeEngine({
+      audioEngine: h.audioEngine,
+      audioClockBridge: h.bridge,
+    })
+    const onStopped = vi.fn()
+    engine.setOnStopped(onStopped)
+    engine.setTimerSeconds(1)
+    await engine.start()
+
+    expect(engine.isPlaying()).toBe(true)
+    for (let i = 0; i < 50; i++) {
+      h.ctx.currentTime += 0.025
+      vi.advanceTimersByTime(25)
+    }
+
+    expect(engine.isPlaying()).toBe(false)
+    expect(onStopped).toHaveBeenCalledTimes(1)
+    expect(h.audioEngine.suspend).not.toHaveBeenCalled()
+    // 窗口内已排节拍未被 stop（timer 停止不 flush）
+    for (const handle of h.stoppedBeats) {
+      expect(handle.stop.mock.calls.length).toBe(0)
+    }
+    // 到点后不再排拍
+    const countAfter = h.scheduled.length
+    h.ctx.currentTime += 1
+    vi.advanceTimersByTime(1000)
+    expect(h.scheduled.length).toBe(countAfter)
+  })
+
+  it('timerSeconds=null 时持续播放不自动停止', async () => {
+    const h = createHarness()
+    const engine = createMetronomeEngine({
+      audioEngine: h.audioEngine,
+      audioClockBridge: h.bridge,
+    })
+    const onStopped = vi.fn()
+    engine.setOnStopped(onStopped)
+    engine.setTimerSeconds(null)
+    await engine.start()
+
+    for (let i = 0; i < 50; i++) {
+      h.ctx.currentTime += 0.025
+      vi.advanceTimersByTime(25)
+    }
+    expect(engine.isPlaying()).toBe(true)
+    expect(onStopped).not.toHaveBeenCalled()
+    expect(h.scheduled.length).toBeGreaterThan(0)
+  })
+
+  it('播放中 setTimerSeconds 触发 restartRound', async () => {
+    const h = createHarness()
+    const engine = createMetronomeEngine({
+      audioEngine: h.audioEngine,
+      audioClockBridge: h.bridge,
+    })
+    await engine.start()
+    for (let i = 0; i < 20; i++) {
+      h.ctx.currentTime += 0.025
+      vi.advanceTimersByTime(25)
+    }
+
+    const ctxBefore = h.ctx.currentTime
+    engine.setTimerSeconds(2)
+    expect(engine.getConfig().timerSeconds).toBe(2)
+    // flush 旧句柄
+    for (const handle of h.stoppedBeats) {
+      expect(handle.stop.mock.calls.length).toBeGreaterThan(0)
+    }
+
+    h.ctx.currentTime += 0.025
+    vi.advanceTimersByTime(25)
+    const newBeat = h.scheduled[h.scheduled.length - 1]
+    expect(newBeat.time).toBeCloseTo(ctxBefore + 0.06, 9)
   })
 })

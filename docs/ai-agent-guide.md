@@ -86,6 +86,12 @@ AI 代理在本仓库承担三类工作：
 | 2026-08-21 | M1 细化：lookahead 调度循环归 `MetronomeEngine`，`AudioEngine` 退化为纯发声层 | 节拍序列可复用于 M3 评分，职责单一 | 生效 |
 | 2026-08-21 | `ScheduledBeat.stop()` 用 `disconnect()` 取消未启动节拍 | Web Audio 中未 `start()` 的节点调 `stop()` 抛 `InvalidStateError`，需断开连线才能真正撤销未来排定的发声 | 生效 |
 | 2026-08-21 | M1 视觉相位直接读调度同源时钟 `ctx.currentTime`，不经 `getOutputTimestamp` 桥接 | `AudioTimestamp.performanceTime` 跨浏览器时间基不一致会引入任意相位偏移（拍灯从第 2/3 拍闪、重音对不上） | 生效 |
+| 2026-08-21 | M2：`beatIndexAtAudioTime` 保持拍内序号，另增 `subdivisionIndexAtAudioTime` | 拍灯表达拍号结构、细分是每拍密度，两维度分开喂视觉；M1 契约与既有测试不变 | 生效 |
+| 2026-08-21 | M2：静音仍建 AudioContext 驱动时钟，`scheduleBeat` 静音时返回空句柄不创建节点 | 视觉读 `ctx.currentTime`，无运行时钟则视觉冻结；运行中无源 AudioContext 不产生可听输出 | 生效 |
+| 2026-08-21 | M2：主题用 CSS 变量 + `data-theme`，不用 Tailwind `dark:` 变体 | 现有组件硬编码暗色，CSS 变量把色板集中、切换只翻转一个属性，迁移为纯机械替换 | 生效 |
+| 2026-08-21 | M2：设置持久化用 zustand `persist`（key `stayonbeat-settings` v1），测试工厂默认关闭 | 声明式 partialize + 自动 rehydrate；测试默认不触碰 localStorage | 生效 |
+| 2026-08-21 | M2：计时器归 `MetronomeEngine` 音频时钟驱动，`setOnStopped` 回调，到点不 flush 不 suspend | store 级 `setTimeout` 后台会节流且与调度不同源；到点让窗口内最后几拍自然播完 | 生效 |
+| 2026-08-21 | M2：Tap BPM 取中位数抗抖动，过滤 200–3000ms，间隔 >2500ms 重置 | 连点/停顿会把均值带偏 | 生效 |
 
 ## 7. 输出要求
 

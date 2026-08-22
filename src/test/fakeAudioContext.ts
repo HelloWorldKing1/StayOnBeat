@@ -8,6 +8,7 @@ export interface FakeAudioParam {
 
 export interface FakeAudioNode {
   connect: ReturnType<typeof vi.fn>
+  disconnect: ReturnType<typeof vi.fn>
 }
 
 export interface FakeOscillator extends FakeAudioNode {
@@ -54,6 +55,7 @@ export function createFakeAudioContext(initialCurrentTime = 0): FakeAudioContext
       type: 'sine',
       frequency: { value: 0 },
       connect: vi.fn(),
+      disconnect: vi.fn(),
       start: vi.fn(),
       stop: vi.fn(),
     })),
@@ -64,6 +66,7 @@ export function createFakeAudioContext(initialCurrentTime = 0): FakeAudioContext
         exponentialRampToValueAtTime: vi.fn(),
       },
       connect: vi.fn(),
+      disconnect: vi.fn(),
     })),
   }
   return ctx

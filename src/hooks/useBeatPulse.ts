@@ -1,10 +1,9 @@
 import { useEffect } from 'react'
-import { audioClockBridge } from '../lib/clock'
 import { metronomeEngine, useMetronomeStore } from '../store/useMetronomeStore'
 
 /**
  * 播放期间用 rAF 驱动 currentBeat：
- * 每帧把性能时间经时钟桥换算成音频时间，再询问调度引擎当前拍序号，写入 store。
+ * 每帧读调度同源的音频时钟（ctx.currentTime），再询问调度引擎当前拍序号，写入 store。
  * 停止或卸载时取消 rAF（StrictMode 双挂载安全）。
  */
 export function useBeatPulse(): void {
@@ -15,7 +14,7 @@ export function useBeatPulse(): void {
     let rafId = 0
 
     const loop = () => {
-      const audioNow = audioClockBridge.perfMsToAudio(performance.now())
+      const audioNow = metronomeEngine.currentAudioTime()
       const beat = metronomeEngine.beatIndexAtAudioTime(audioNow)
       useMetronomeStore.getState()._setCurrentBeat(beat)
       rafId = requestAnimationFrame(loop)

@@ -11,6 +11,7 @@ const fakeMetronomeEngine = vi.hoisted(() => ({
   setBeatsPerBar: vi.fn(),
   setAccentFirstBeat: vi.fn(),
   isPlaying: vi.fn(() => false),
+  currentAudioTime: vi.fn(() => 0),
   beatIndexAtAudioTime: vi.fn(() => -1),
   getConfig: vi.fn(() => ({ bpm: 120, beatsPerBar: 4, accentFirstBeat: true })),
   dispose: vi.fn(),

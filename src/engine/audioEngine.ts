@@ -63,7 +63,17 @@ export function createAudioEngine(opts: AudioEngineOptions = {}): AudioEngine {
 
     return {
       stop() {
-        // 已停止或已到 stop 时间的节点再 stop 会抛 InvalidStateError，忽略即可
+        // 未启动的节点 stop() 会抛 InvalidStateError；disconnect 把未来排定的发声从信号路径移除
+        try {
+          gain.disconnect()
+        } catch {
+          // no-op
+        }
+        try {
+          osc.disconnect()
+        } catch {
+          // no-op
+        }
         try {
           osc.stop()
         } catch {

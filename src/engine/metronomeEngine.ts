@@ -19,6 +19,8 @@ export interface MetronomeEngine {
   setBeatsPerBar(n: number): void
   setAccentFirstBeat(on: boolean): void
   isPlaying(): boolean
+  /** 当前音频时钟（ctx.currentTime），与调度同源，供视觉相位读取。 */
+  currentAudioTime(): number
   /** 返回 audioNow 时刻正在播放的拍序号；0..beatsPerBar-1，未开始或尚未到首拍时返回 -1。 */
   beatIndexAtAudioTime(audioNow: number): number
   getConfig(): MetronomeConfig
@@ -112,6 +114,9 @@ export function createMetronomeEngine({
     },
     isPlaying() {
       return playing
+    },
+    currentAudioTime() {
+      return audioEngine.context?.currentTime ?? 0
     },
     beatIndexAtAudioTime(audioNow) {
       if (!playing || firstBeatTime == null) return -1

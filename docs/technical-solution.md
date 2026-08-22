@@ -105,6 +105,8 @@ flowchart LR
 
 说明：上述调度循环由 `MetronomeEngine` 拥有（维护 `nextNoteTime`/`beatIndex`/节拍序列），`AudioEngine` 只提供 `scheduleBeat(audioTime, { accent })` 把单个节拍排进音频时间线；二者合起来即完整的 lookahead scheduler。M1 阶段即按此拆分落地。
 
+撤销未发声节拍：重排/停止时需撤销「已排入时间线但尚未开始」的节拍。Web Audio 中未 `start()` 的节点调 `stop()` 会抛 `InvalidStateError`，因此 `ScheduledBeat.stop()` 通过 `disconnect()` 断开节点连线来真正取消发声。
+
 伪代码：
 
 ```text
@@ -133,6 +135,8 @@ AudioClockBridge:
 ```
 
 在 `AudioContext` 真正开始渲染后再校准一次。若浏览器支持 `AudioContext.getOutputTimestamp()`，优先用其校正输入延迟；手动“输入延迟校准”作为 P1 增强项。
+
+M1 视觉相位直接读 `ctx.currentTime`（与调度同源），不经时钟桥，避免 `getOutputTimestamp()` 跨浏览器时间基差异导致相位漂移；`AudioClockBridge` 保留供 M3 输入评分把输入事件时间映射到调度时钟使用。
 
 ### 6.3 输入采集
 

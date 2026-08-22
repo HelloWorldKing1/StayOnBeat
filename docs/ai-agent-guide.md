@@ -84,6 +84,8 @@ AI 代理在本仓库承担三类工作：
 | 2026-08-21 | 新增 `CLAUDE.md`，仅作 Claude Code 定向入口 | 与 AGENTS.md 互补，避免重复内容 | 生效 |
 | 2026-08-21 | 参考站「速度术语显示」保留并纳入 MVP；「440Hz 校音音」「多音色」不纳入 MVP | 补齐参考站功能清单，聚焦跟拍训练 | 生效 |
 | 2026-08-21 | M1 细化：lookahead 调度循环归 `MetronomeEngine`，`AudioEngine` 退化为纯发声层 | 节拍序列可复用于 M3 评分，职责单一 | 生效 |
+| 2026-08-21 | `ScheduledBeat.stop()` 用 `disconnect()` 取消未启动节拍 | Web Audio 中未 `start()` 的节点调 `stop()` 抛 `InvalidStateError`，需断开连线才能真正撤销未来排定的发声 | 生效 |
+| 2026-08-21 | M1 视觉相位直接读调度同源时钟 `ctx.currentTime`，不经 `getOutputTimestamp` 桥接 | `AudioTimestamp.performanceTime` 跨浏览器时间基不一致会引入任意相位偏移（拍灯从第 2/3 拍闪、重音对不上） | 生效 |
 
 ## 7. 输出要求
 

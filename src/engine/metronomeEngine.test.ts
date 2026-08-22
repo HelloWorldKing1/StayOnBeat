@@ -227,4 +227,24 @@ describe('createMetronomeEngine', () => {
     expect(engine.beatIndexAtAudioTime(ctxNow)).toBe(-1)
     expect(engine.beatIndexAtAudioTime(ctxNow + 0.06)).toBe(0)
   })
+
+  it('currentAudioTime 返回调度同源的 ctx.currentTime', async () => {
+    const h = createHarness()
+    const engine = createMetronomeEngine({
+      audioEngine: h.audioEngine,
+      audioClockBridge: h.bridge,
+    })
+    await engine.start()
+    h.ctx.currentTime = 12.5
+    expect(engine.currentAudioTime()).toBe(12.5)
+  })
+
+  it('context 为 null 时 currentAudioTime 返回 0', () => {
+    const h = createHarness()
+    const engine = createMetronomeEngine({
+      audioEngine: { context: null } as unknown as AudioEngine,
+      audioClockBridge: h.bridge,
+    })
+    expect(engine.currentAudioTime()).toBe(0)
+  })
 })

@@ -126,8 +126,8 @@ createAudioEngine(opts?): AudioEngine
 // src/engine/metronomeEngine.ts
 createMetronomeEngine(audioEngine): MetronomeEngine
 // MetronomeEngine: start(); stop(); setBpm(); setBeatsPerBar(); setAccentFirstBeat();
-//   isPlaying(); beatIndexAtAudioTime(audioNow): number; getConfig();
-//   resumeAfterBackground(); dispose()
+//   isPlaying(); currentAudioTime(): number; beatIndexAtAudioTime(audioNow): number;
+//   getConfig(); resumeAfterBackground(); dispose()
 
 // src/store/useMetronomeStore.ts
 createMetronomeStore(deps?): store       // 测试注入假引擎

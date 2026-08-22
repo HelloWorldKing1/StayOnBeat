@@ -79,6 +79,20 @@ describe('createAudioEngine', () => {
     expect(() => beat.stop()).not.toThrow()
   })
 
+  it('stop 通过 disconnect 移除未启动的节拍节点', () => {
+    const fakeCtx = createFakeAudioContext()
+    const engine = makeEngine(fakeCtx)
+
+    const beat = engine.scheduleBeat(1, { accent: false })
+    const osc = fakeCtx.createOscillator.mock.results[0].value
+    const beatGain = fakeCtx.createGain.mock.results[1].value
+
+    beat.stop()
+    expect(beatGain.disconnect).toHaveBeenCalled()
+    expect(osc.disconnect).toHaveBeenCalled()
+    expect(() => beat.stop()).not.toThrow()
+  })
+
   it('dispose 后 ensureContext 重建新实例', async () => {
     const fake1 = createFakeAudioContext()
     const fake2 = createFakeAudioContext()

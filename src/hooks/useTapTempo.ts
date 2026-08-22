@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { estimateTapTempo } from '../lib/tapTempo'
+import { estimateTapTempo, type TapTempoResult } from '../lib/tapTempo'
 
 export const DEFAULT_TAP_MAX_GAP_MS = 2500
 
@@ -11,6 +11,8 @@ interface UseTapTempoOptions {
 export interface TapTempoState {
   taps: number
   estimatedBpm: number | null
+  /** 是否敲得过快（原始 BPM 超 240 或样本全被过滤）。 */
+  tooFast: boolean
   onTap: () => void
   reset: () => void
 }
@@ -20,12 +22,12 @@ export function useTapTempo(opts: UseTapTempoOptions = {}): TapTempoState {
   const { minTaps = 4, maxGapMs = DEFAULT_TAP_MAX_GAP_MS } = opts
   const timesRef = useRef<number[]>([])
   const [taps, setTaps] = useState(0)
-  const [estimatedBpm, setEstimatedBpm] = useState<number | null>(null)
+  const [result, setResult] = useState<TapTempoResult>({ bpm: null, fast: false })
 
   const reset = useCallback(() => {
     timesRef.current = []
     setTaps(0)
-    setEstimatedBpm(null)
+    setResult({ bpm: null, fast: false })
   }, [])
 
   const onTap = useCallback(() => {
@@ -36,8 +38,8 @@ export function useTapTempo(opts: UseTapTempoOptions = {}): TapTempoState {
     }
     timesRef.current.push(now)
     setTaps(timesRef.current.length)
-    setEstimatedBpm(estimateTapTempo(timesRef.current, minTaps))
+    setResult(estimateTapTempo(timesRef.current, minTaps))
   }, [maxGapMs, minTaps])
 
-  return { taps, estimatedBpm, onTap, reset }
+  return { taps, estimatedBpm: result.bpm, tooFast: result.fast, onTap, reset }
 }

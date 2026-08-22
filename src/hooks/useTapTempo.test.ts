@@ -64,5 +64,45 @@ describe('useTapTempo', () => {
     act(() => result.current.reset())
     expect(result.current.taps).toBe(0)
     expect(result.current.estimatedBpm).toBeNull()
+    expect(result.current.tooFast).toBe(false)
+  })
+
+  it('敲得过快无估算时 tooFast 为 true', () => {
+    let now = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const { result } = renderHook(() => useTapTempo())
+
+    act(() => {
+      now = 0
+      result.current.onTap()
+      now = 50
+      result.current.onTap()
+      now = 100
+      result.current.onTap()
+      now = 150
+      result.current.onTap()
+    })
+    expect(result.current.taps).toBe(4)
+    expect(result.current.estimatedBpm).toBeNull()
+    expect(result.current.tooFast).toBe(true)
+  })
+
+  it('敲击超过 240 BPM（150ms）时得到 240 且 tooFast 为 true', () => {
+    let now = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const { result } = renderHook(() => useTapTempo())
+
+    act(() => {
+      now = 0
+      result.current.onTap()
+      now = 150
+      result.current.onTap()
+      now = 300
+      result.current.onTap()
+      now = 450
+      result.current.onTap()
+    })
+    expect(result.current.estimatedBpm).toBe(240)
+    expect(result.current.tooFast).toBe(true)
   })
 })

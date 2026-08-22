@@ -12,9 +12,13 @@
   --primary: #eb825a;
   --primary-soft: rgba(235, 130, 90, 0.4);
   --danger: #e45756;
+  --success: #50c391;
+  --info: #6c8eff;
   font-family:
     -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI',
     sans-serif;
+  /* 网页版整体放大一号：Tailwind 的 text-*/rem 尺寸随之等比例放大 */
+  font-size: 18px;
   color: var(--text-primary);
   background: var(--bg);
   font-synthesis: none;
@@ -34,6 +38,8 @@
   --primary: #eb825a;
   --primary-soft: rgba(235, 130, 90, 0.25);
   --danger: #e45756;
+  --success: #50c391;
+  --info: #6c8eff;
 }
 
 body {

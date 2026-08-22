@@ -1,6 +1,6 @@
 # StayOnBeat 开发计划
 
-> 状态：v0.3（M1–M3 已实现并验证，M4 待推进）
+> 状态：v0.3（M1–M4 已实现并验证，M5 待推进）
 > 依赖基线：`docs/product-design.md` v0.3、`docs/technical-solution.md` v0.3
 > 更新规则：需求、架构或范围变化时，先更新产品和/或技术文档，再更新本计划。
 
@@ -350,17 +350,73 @@ mode: 'training' | 'metronome'; countInEnabled: boolean
 
 ### 5.5 M4：总结与历史
 
-- [ ] 实现会话总结：匹配度、评级、判定分布、连击、平均偏差、早/晚率。
-- [ ] 实现会话状态 `completed / aborted`。
-- [ ] 实现历史记录列表与基础统计。
-- [ ] 使用 IndexedDB 保存训练记录，设置继续使用 localStorage。
-- [ ] 实现“再来一次”复用当前设置。
+> 详细任务拆解见 §5.5.1–5.5.4。模块接口以 `docs/technical-solution.md` §5.1/§8.2/§9/§10 为准（M4 关键裁决：历史用原生 IndexedDB 薄适配 + 可注入存储，不新增依赖；保存时机在 summary 侧 `useSaveSessionToHistory`；记录补 `id/startedAt/endedAt`；再来一次 = `reset()+startTraining()`）。
 
-**验收**
+- [x] 实现会话总结：匹配度、评级、判定分布、连击、平均偏差、早/晚率。
+- [x] 实现会话状态 `completed / aborted`。
+- [x] 实现历史记录列表与基础统计。
+- [x] 使用 IndexedDB 保存训练记录，设置继续使用 localStorage。
+- [x] 实现“再来一次”复用当前设置。
 
-- 正常结束与中途停止都有正确总结。
-- 刷新后历史记录仍存在。
-- 记录数据模型与技术方案一致。
+#### 5.5.1 任务拆解
+
+| ID | 任务标题 | 说明 | 主要文件（新建/改） | 依赖 | 每任务验收 |
+| --- | --- | --- | --- | --- | --- |
+| M4.1 | 会话总结组件 | `SessionSummary`：匹配度大数字+评级、completed/aborted 徽标、判定分布（Perfect/Great/Good/Miss）、最大连击、平均偏移/标准差、早晚率、时长/BPM/拍号/细分。 | `src/components/SessionSummary.tsx` + test | M3 result | 渲染 `SessionResult` 全部关键字段；completed/aborted 徽标正确。 |
+| M4.2 | ✅ 历史持久化 | `src/lib/history.ts`：`HistoryRecord = SessionResult & { id, startedAt, endedAt }`；`HistoryStorage` 接口（`add/getAll/clear`）；`createIndexedDbHistoryStorage`（原生 IDB，db `stayonbeat`/store `sessions`）；`createMemoryHistoryStorage`；`createHistoryStore(storage?)` 单例 `save/list/clear`。 | `src/lib/history.ts` + test | — | memory storage 单测覆盖 save/list/clear；IndexedDB 绑定薄。 |
+| M4.3 | 训练结束保存 | 训练 store 记录 `startedAt`（start 时 wall-clock）与 `endedAt`（endSession）；`useSaveSessionToHistory` 在 `phase==='summary'` 且 result 变化时补 `id` 并 `save` 一次（按引用去重）。 | `src/store/useTrainingStore.ts`、`src/hooks/useSaveSessionToHistory.ts` + test | M4.2 | summary 时保存一次；重复渲染不重复保存；记录含 id/时间戳。 |
+| M4.4 | ✅ 历史面板 | `HistoryPanel`：列表（时间/BPM/拍号/细分/匹配度/评级/状态）+ 基础统计（总次数/平均匹配度/最高/Best 评级）；on mount `list()`。 | `src/components/HistoryPanel.tsx` + test | M4.2、M4.3 | 空态与有数据渲染；统计正确。 |
+| M4.5 | 再来一次/返回 | `SessionSummary` 增「再来一次」= `reset()+startTraining()`（复用当前设置）、「返回」= `reset()` 回 idle/ready。 | `src/components/SessionSummary.tsx` + test | M4.1、M4.3 | 再来一次开启新会话（phase 重新流转）；返回回 idle。 |
+| M4.6 | ✅ 集成/E2E/文档 | App 训练模式 `phase==='summary'` → 显示 `SessionSummary`；历史入口；E2E 训练→总结→刷新历史仍在；展开本节并勾选。 | `src/App.tsx`、`tests/e2e/*`、`docs/*` | M4.4、M4.5 | 训练结束显示总结；刷新后历史仍在；测试/构建/lint 全绿；文档勾选。 |
+
+#### 5.5.2 任务依赖图
+
+```mermaid
+flowchart LR
+    M4.2 --> M4.3
+    M4.2 --> M4.4
+    M4.1 --> M4.5
+    M4.3 --> M4.4
+    M4.4 --> M4.6
+    M4.5 --> M4.6
+```
+
+#### 5.5.3 模块接口概览
+
+签名简列，实现细节以任务为准：
+
+```ts
+// src/lib/history.ts（新建）
+export interface HistoryRecord extends SessionResult {
+  id: string
+  startedAt: number
+  endedAt: number
+}
+export interface HistoryStorage {
+  add(record: HistoryRecord): Promise<void>
+  getAll(): Promise<HistoryRecord[]>
+  clear(): Promise<void>
+}
+export function createIndexedDbHistoryStorage(): HistoryStorage   // 原生 IDB，db 'stayonbeat' / store 'sessions'
+export function createMemoryHistoryStorage(): HistoryStorage       // 测试用
+export function createHistoryStore(storage?: HistoryStorage)      // save/list/clear
+// 单例 historyStore
+
+// src/hooks/useSaveSessionToHistory.ts（新建）
+useSaveSessionToHistory(): void   // phase==='summary' 且 result 变化时保存一次
+
+// src/store/useTrainingStore.ts（扩展）
+// startTraining 记录 startedAt；endSession 记录 endedAt
+```
+
+#### 5.5.4 M4 集成验收
+
+- [x] 正常结束（`completed`）与中途停止（`aborted`）都有正确总结（状态徽标 + 匹配度/评级/判定分布/连击/早晚率）。
+- [x] 刷新后历史记录仍存在（IndexedDB 持久化；memory storage 单测覆盖 save/list/clear）。
+- [x] 记录数据模型与技术方案 §8.2 一致（含 `id/startedAt/endedAt`）。
+- [x] 再来一次复用当前设置开启新会话。
+
+执行命令与 §5.2.4 相同（本机用 `node_modules/.bin/*` 运行 vitest/eslint/tsc/vite/playwright）。
 
 ### 5.6 M5：发布准备
 
@@ -432,6 +488,8 @@ M1 阶段测试重点：tempo 计算边界、时钟桥换算、lookahead 节拍�
 M2 阶段测试重点：细分间距与 soft 音色、`subdivisionIndexAtAudioTime`、计时器自动停止（到点不 flush/suspend、回调触发）、静音下 `scheduleBeat` 零节点但调度继续、`useTapTempo` 中位数估算、主题 `data-theme` 切换与持久化、`useFullscreen` 降级；E2E 补细分/计时器/持久化/Tap/静音徽标。
 
 M3 阶段测试重点：判定窗口动态收紧与偏移→判定、`nearestExpectedGlobalIndex`、一预期拍一有效点击与冗余去重、Miss 过期（50ms tick）、count-in 不记分、`liveAccuracy` 用 `resolvedCount`、输入时间基换算与去重窗口、训练状态机（count-in→training→summary）与三类中止（timer/manual/background）；E2E 补训练全流程与锁定设置。
+
+M4 阶段测试重点：history store（memory storage）save/list/clear、`HistoryRecord` 补 `id/startedAt/endedAt`、`useSaveSessionToHistory` 只保存一次（按引用去重）、`SessionSummary`/`HistoryPanel` 渲染与统计、再来一次复用设置；E2E 补训练→总结→刷新历史仍在。
 
 测试数据建议：
 
@@ -515,5 +573,6 @@ MVP 发布后观察：
 2. 剩余验收：在真实浏览器完成 5 分钟连续播放与 E2E（本机缺 Playwright 浏览器）。
 3. M2 设置与体验已完成（细分、计时器、Tap BPM、亮暗主题、全屏、静音/仅视觉、设置持久化），§5.3.1 任务表 M2.1–M2.9 全部勾选。
 4. M3 训练评分已完成（双模式切换、count-in、键盘/鼠标输入、动态判定窗口、实时匹配度/连击、训练中锁定），§5.4.1 任务表 M3.1–M3.10 全部勾选。
-5. 下一里程碑 M4 总结与历史：会话总结页、IndexedDB 历史记录、状态 completed/aborted、再来一次。
+5. M4 总结与历史已完成（会话总结、IndexedDB 历史、completed/aborted、再来一次），§5.5.1 任务表 M4.1–M4.6 全部勾选。
+6. 下一里程碑 M5 发布准备：响应式、可访问性、性能、CI、静态部署。
 4. 根据 M1 实测调度抖动，评估是否提前引入校准能力。

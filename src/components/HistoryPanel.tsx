@@ -1,0 +1,68 @@
+import { useEffect, useState } from 'react'
+import { historyStore, type HistoryRecord, type HistoryStore } from '../lib/history'
+
+function formatTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+interface HistoryPanelProps {
+  store?: HistoryStore
+}
+
+export function HistoryPanel({ store = historyStore }: HistoryPanelProps) {
+  const [records, setRecords] = useState<HistoryRecord[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    void store
+      .list()
+      .then((r) => {
+        if (!cancelled) setRecords(r)
+      })
+      .catch(() => {
+        // jsdom 等无 IndexedDB 环境降级为空
+        if (!cancelled) setRecords([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [store])
+
+  const count = records.length
+  const avg = count ? records.reduce((a, r) => a + r.accuracy, 0) / count : 0
+  const best = count ? Math.max(...records.map((r) => r.accuracy)) : 0
+
+  return (
+    <section data-testid="history-panel" className="w-full max-w-md text-sm">
+      <h2 className="mb-2 text-base font-semibold">历史记录</h2>
+      {count > 0 && (
+        <p className="mb-2 text-[var(--text-secondary)]">
+          共 {count} 次 · 平均 {avg.toFixed(1)}% · 最高 {best.toFixed(1)}%
+        </p>
+      )}
+      {records.length === 0 ? (
+        <p className="text-[var(--text-secondary)]">暂无记录</p>
+      ) : (
+        <ul className="space-y-1">
+          {records.map((r) => (
+            <li
+              key={r.id}
+              className="flex justify-between border-b border-[var(--border)] py-1"
+            >
+              <span>
+                {formatTime(r.endedAt)} · {r.bpm} BPM
+              </span>
+              <span className="tabular-nums">
+                {r.accuracy.toFixed(1)}% <strong>{r.grade}</strong>
+                {r.status === 'aborted' ? '（中止）' : ''}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}

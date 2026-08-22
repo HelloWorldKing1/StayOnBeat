@@ -60,6 +60,10 @@ interface SessionRuntime {
   resolvedCount: number
   earlyCount: number
   lateCount: number
+  /** 会话开始 wall-clock（ms），供历史记录。 */
+  startedAt: number
+  /** 会话结束 wall-clock（ms），供历史记录。 */
+  endedAt: number
 }
 
 type TrainingSettings = Pick<
@@ -131,6 +135,8 @@ export function createTrainingStore(deps: TrainingStoreDeps = {}) {
         resolvedCount: 0,
         earlyCount: 0,
         lateCount: 0,
+        startedAt: Date.now(),
+        endedAt: 0,
       }
 
       // 计时器到点自动停止 → completed（引擎已自停）
@@ -229,8 +235,13 @@ export function createTrainingStore(deps: TrainingStoreDeps = {}) {
       // 补齐未结算拍，再读取最终 session 结算
       get().expireMissedBeats()
       const final = get().session!
-      const result = computeResult(final, status, metronomeEngine.currentAudioTime())
-      set({ phase: 'summary', session: final, result })
+      const sessionWithEnd = { ...final, endedAt: Date.now() }
+      const result = computeResult(
+        sessionWithEnd,
+        status,
+        metronomeEngine.currentAudioTime(),
+      )
+      set({ phase: 'summary', session: sessionWithEnd, result })
     },
 
     reset() {

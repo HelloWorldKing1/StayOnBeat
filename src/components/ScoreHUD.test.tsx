@@ -21,6 +21,8 @@ function setSession() {
       resolvedCount: 1,
       earlyCount: 0,
       lateCount: 1,
+      startedAt: 0,
+      endedAt: 0,
     },
     lastJudgement: 'perfect',
     lastOffsetMs: 12,

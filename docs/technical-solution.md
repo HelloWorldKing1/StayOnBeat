@@ -86,7 +86,7 @@ flowchart LR
 - `InputEngine`：M3 落地为 `src/lib/input.ts`（纯函数：事件时间基换算、去重窗口）+ `useTrainingInput`（hook：键盘/鼠标监听、过滤 `event.repeat`、`pointerdown` 限定训练垫）。
 - `ScoringEngine`：M3 落地为 `src/lib/scoring.ts`（纯函数：判定窗口、偏移→判定、最近预期拍、匹配度）+ `useTrainingStore`（状态化编排：命中记录、Miss 过期、结算）。
 - `SessionStore`：`useTrainingStore` 中的 session 运行时与结算结果。
-- `PersistenceStore`：持久化用户设置与历史成绩。
+- `PersistenceStore`：持久化用户设置（localStorage，M2）与历史成绩（IndexedDB，M4 薄适配 + 可注入存储，见 §8.2）。
 
 ## 6. 节拍与音频引擎
 
@@ -279,6 +279,8 @@ M2/M3 落地：设置子集（`bpm/beatsPerBar/accentFirstBeat/subdivision/timer
 
 M3 落地：`expectedBeatIndex` 为全局细分序号（含 count-in 偏移的全局拍序）；`offsetMs` 可为 `null`（Miss，无偏移）；`hits` 含 Miss 条目以便完整结算。
 
+M4 落地：持久化记录为 `HistoryRecord = SessionResult & { id, startedAt, endedAt }`（M3 结果补三字段），经 `src/lib/history.ts` 的 `HistoryStorage`（原生 IndexedDB 薄适配 + 可注入 memory 存储）save/list/clear；训练 store 保持纯，保存由 summary 侧 `useSaveSessionToHistory` 触发一次。
+
 ## 9. 状态机
 
 ```text
@@ -296,6 +298,8 @@ MVP 训练模式不做暂停，减少状态复杂度；计时器到点、用户�
 
 训练模式 phase 映射：store 内 `phase`（`idle/ready/countIn/training/summary`）对应 `IDLE→READY→COUNT_IN→TRAINING→SUMMARY`；中止分三类——计时器到点→`completed`、手动停止/后台 hidden→`aborted`。训练模式下 `useBeatPulse` 跳过 `resumeAfterBackground`（避免节拍时间轴重排破坏评分）。
 
+`SUMMARY` 侧：展示 `SessionResult` 后，「再来一次」= `reset()` + `startTraining()`（复用当前设置）；「返回」= `reset()` 回 `idle/ready`。
+
 ## 10. 组件拆分草案
 
 - `MetronomeDisplay`：BPM 数字、拍点灯、当前拍。
@@ -312,6 +316,8 @@ MVP 训练模式不做暂停，减少状态复杂度；计时器到点、用户�
 - `TapTempo`：点击计数与 BPM 估算、应用（M2）。
 - `PatternSettings`：拍号、重音、细分、计时器（M2 起取代 M1 的 `BeatSettings`）。
 - `useFullscreen` / `useTapTempo`：全屏与 Tap 逻辑 hook（M2）。
+- `SessionSummary`：训练结果面板（匹配度/评级/判定分布/连击/早晚率）+ 再来一次/返回（M4）。
+- `HistoryPanel`：最近训练记录列表与基础统计（M4）。
 
 ## 11. 非功能需求
 

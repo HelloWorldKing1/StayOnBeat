@@ -101,6 +101,9 @@ AI 代理在本仓库承担三类工作：
 | 2026-08-21 | M3：persist version 保持 1，新增字段浅合并回退默认 | 避免旧 localStorage 数据因版本升级失效 | 生效 |
 | 2026-08-21 | M3 输入评分用输入时钟桥（不依赖 `getOutputTimestamp`），与视觉/调度同源 | `getOutputTimestamp().performanceTime` 跨浏览器时间基不一致会引入大偏移，导致训练输入无法命中预期拍 | 生效 |
 | 2026-08-21 | 训练视觉由 training phase 驱动（`shouldRunBeatPulse`），非 `isPlaying`；后台 hidden 中止训练 | 训练模式不置 metronome isPlaying，rAF 需按 phase 运行；后台中止避免节拍时间轴重排破坏评分 | 生效 |
+| 2026-08-21 | M4：历史持久化用原生 IndexedDB 薄适配 + 可注入存储，不新增依赖 | 训练 store 不直接碰 IndexedDB；测试用 memory storage 覆盖 save/list/clear | 生效 |
+| 2026-08-21 | M4：保存时机在 summary 侧 `useSaveSessionToHistory`（按 result 引用去重） | 训练 store 保持纯；一次会话只保存一次 | 生效 |
+| 2026-08-21 | M4：会话记录补 `id/startedAt/endedAt` | M3 `SessionResult` 缺三字段；补全后与 §8.2 数据模型一致 | 生效 |
 
 ## 7. 输出要求
 

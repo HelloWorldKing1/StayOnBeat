@@ -10,6 +10,8 @@ export function TopBar({ onOpenSettings }: TopBarProps) {
   const setTheme = useMetronomeStore((s) => s.setTheme)
   const muted = useMetronomeStore((s) => s.muted)
   const setMuted = useMetronomeStore((s) => s.setMuted)
+  const mode = useMetronomeStore((s) => s.mode)
+  const setMode = useMetronomeStore((s) => s.setMode)
   const { isFullscreen, toggle, supported } = useFullscreen()
 
   return (
@@ -18,6 +20,14 @@ export function TopBar({ onOpenSettings }: TopBarProps) {
         STAY ON BEAT
       </span>
       <div className="flex items-center gap-2 text-sm">
+        <button
+          type="button"
+          aria-label="切换模式"
+          onClick={() => setMode(mode === 'training' ? 'metronome' : 'training')}
+          className="rounded-full border border-[var(--border)] px-3 py-1"
+        >
+          {mode === 'training' ? '训练' : '节拍器'}
+        </button>
         <button
           type="button"
           aria-label="切换主题"

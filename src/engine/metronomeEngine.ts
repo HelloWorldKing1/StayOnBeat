@@ -30,7 +30,11 @@ export interface MetronomeEngine {
   setTimerSeconds(sec: number | null): void
   /** 注册计时器到点自动停止的回调；手动 stop() 不触发。 */
   setOnStopped(cb: () => void): void
+  /** 追加计时器到点回调（与 setOnStopped 并存），返回退订函数。 */
+  addOnStopped(cb: () => void): () => void
   isPlaying(): boolean
+  /** 会话首拍音频时间（评分基准）；未播放时为 null。 */
+  getFirstBeatTime(): number | null
   /** 当前音频时钟（ctx.currentTime），与调度同源，供视觉相位读取。 */
   currentAudioTime(): number
   /** 返回 audioNow 时刻正在播放的拍序号；0..beatsPerBar-1，未开始或尚未到首拍时返回 -1。 */
@@ -66,7 +70,7 @@ export function createMetronomeEngine({
   let subIndex = 0
   let firstBeatTime: number | null = null
   let endAudioTime: number | null = null
-  let onStopped: (() => void) | null = null
+  const stoppedCallbacks = new Set<() => void>()
   const pending = new Set<ScheduledBeat>()
 
   function flushPending() {
@@ -98,7 +102,7 @@ export function createMetronomeEngine({
     subIndex = 0
     firstBeatTime = null
     endAudioTime = null
-    onStopped?.()
+    for (const cb of stoppedCallbacks) cb()
   }
 
   function tick() {
@@ -177,10 +181,20 @@ export function createMetronomeEngine({
       if (playing) restartRound()
     },
     setOnStopped(cb) {
-      onStopped = cb
+      stoppedCallbacks.clear()
+      stoppedCallbacks.add(cb)
+    },
+    addOnStopped(cb) {
+      stoppedCallbacks.add(cb)
+      return () => {
+        stoppedCallbacks.delete(cb)
+      }
     },
     isPlaying() {
       return playing
+    },
+    getFirstBeatTime() {
+      return firstBeatTime
     },
     currentAudioTime() {
       return audioEngine.context?.currentTime ?? 0

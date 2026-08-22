@@ -1,6 +1,6 @@
 # StayOnBeat 开发计划
 
-> 状态：v0.3（M1 与 M2 已实现并验证，M3 待推进）
+> 状态：v0.3（M1–M3 已实现并验证，M4 待推进）
 > 依赖基线：`docs/product-design.md` v0.3、`docs/technical-solution.md` v0.3
 > 更新规则：需求、架构或范围变化时，先更新产品和/或技术文档，再更新本计划。
 
@@ -256,23 +256,97 @@ useFullscreen(): { isFullscreen; toggle(); supported }
 
 ### 5.4 M3：训练评分
 
-- [ ] 实现“节拍器 / 训练”模式切换，默认训练。
-- [ ] 实现 count-in：默认 1 小节，可选关闭，不计入评分。
-- [ ] 实现键盘输入：`Space`/`Enter`，阻止 `event.repeat`。
-- [ ] 实现鼠标/触摸输入：`pointerdown`，统一输入源并去重。
-- [ ] 实现时钟桥：音频时间、性能时间、输入事件时间对齐。
-- [ ] 实现动态判定窗口与命中判定。
-- [ ] 实现 Perfect/Great/Good/Miss 动画反馈。
-- [ ] 实现实时匹配度、连击、早期/晚期偏差。
-- [ ] 实现训练中锁定 BPM/拍号/细分/计时器，修改下一轮生效。
+> 详细任务拆解见 §5.4.1–5.4.4。模块接口以 `docs/technical-solution.md` §5.1/§6.3/§7/§8/§9 为准（M3 关键裁决：`mode/countInEnabled` 持久化于 metronome store，训练运行时独立 `useTrainingStore`；输入抽 `src/lib/input.ts` 纯函数 + `useTrainingInput` hook；Miss 过期由 50ms tick 驱动；`addOnStopped` 多回调收计时器到点；后台中止为 aborted；预期拍时间确定性计算）。
 
-**验收**
+- [x] 实现“节拍器 / 训练”模式切换，默认训练。
+- [x] 实现 count-in：默认 1 小节，可选关闭，不计入评分。
+- [x] 实现键盘输入：`Space`/`Enter`，阻止 `event.repeat`。
+- [x] 实现鼠标/触摸输入：`pointerdown`，统一输入源并去重。
+- [x] 实现时钟桥：音频时间、性能时间、输入事件时间对齐。
+- [x] 实现动态判定窗口与命中判定。
+- [x] 实现 Perfect/Great/Good/Miss 动画反馈。
+- [x] 实现实时匹配度、连击、早期/晚期偏差。
+- [x] 实现训练中锁定 BPM/拍号/细分/计时器，修改下一轮生效。
 
-- 固定偏差输入能命中对应判定区间。
-- 键盘重复和多输入源不会重复计分。
-- count-in 阶段点击不影响成绩。
-- 静音与有声两种训练均可完成并计分。
-- 调度/判定相关纯函数有单元测试。
+#### 5.4.1 任务拆解
+
+| ID | 任务标题 | 说明 | 主要文件（新建/改） | 依赖 | 每任务验收 |
+| --- | --- | --- | --- | --- | --- |
+| M3.1 | ✅ 模式切换与训练状态字段 | `useMetronomeStore` 增 `mode:'training'\|'metronome'`（默认 training）、`countInEnabled:boolean`（默认 true）+ `setMode/setCountInEnabled`，入 persist partialize；`TopBar` 增「节拍器/训练」切换。 | `src/store/useMetronomeStore.ts` + test、`src/components/TopBar.tsx` + test | — | 默认 training；切换持久化；组件测试切换调用 `setMode`。 |
+| M3.2 | ✅ 训练运行时 store | 新建 `useTrainingStore`（非持久化，单例 + 工厂）：`phase:idle/ready/countIn/training/summary`、session 运行时（hits/judgements/combo/maxCombo/totalScore/resolvedCount/lastJudgement/lastOffsetMs/earlyCount/lateCount）、动作 `startSession/recordHit/expireMissedBeats/endSession`、50ms Miss 过期 tick。 | `src/store/useTrainingStore.ts` + test | M3.1 | 状态机流转；hit 记录；Miss 过期；endSession 结算。 |
+| M3.3 | ✅ metronomeEngine 评分支撑 | 增 `getFirstBeatTime(): number\|null`、`addOnStopped(cb)`（多回调，与 `setOnStopped` 并存）。 | `src/engine/metronomeEngine.ts` + test | — | `firstBeatTime` 正确；计时器到点触发全部回调。 |
+| M3.4 | ✅ 输入纯函数 | 新建 `src/lib/input.ts`：`normalizeEventTimeMs(ts)`（performance-relative vs epoch 判别换算）、`shouldDedupe(prevMs, nowMs, windowMs=50)`。 | `src/lib/input.ts` + test | — | 时间基换算正确；50ms 去重窗口。 |
+| M3.5 | ✅ 输入采集 hook 与 TrainingPad | `useTrainingInput({onHit, enabled, padRef})`：keydown（Space/Enter `preventDefault`、过滤 `event.repeat`）+ pointerdown（限定 `data-training-pad`）+ 50ms 去重 → `onHit(perfMs)`；`TrainingPad` 大点击区 + 键盘提示 + 命中/漏拍反馈。 | `src/hooks/useTrainingInput.ts`、`src/components/TrainingPad.tsx` + test | M3.4 | keydown/pointerdown 触发 onHit；repeat 过滤；pad 外不触发；去重。 |
+| M3.6 | ✅ 判定纯函数 | 新建 `src/lib/scoring.ts`：`computeJudgementWindows(intervalMs)`（min(120,interval*0.25) 等）、`judgeOffset(offsetMs, windows)`、`judgementScore(j)`、`computeAccuracy(totalScore, expectedCount)`、`nearestExpectedGlobalIndex(inputAudio, firstScoringTime, spSub, goodWindow, nextIndex)`。 | `src/lib/scoring.ts` + test | M3.3 | 固定偏差命中对应区间；窗口随高 BPM/细分收紧；Miss 超窗。 |
+| M3.7 | ✅ 命中记录与实时统计 | `recordHit(perfMs)`：经 `audioClockBridge.perfMsToAudio` 映射到音频 → 找最近未消费预期拍 → 判 offset → 更新 combo/分数/计数；`liveAccuracy` 用 `resolvedCount` 防 >100%。 | `src/store/useTrainingStore.ts` + test | M3.5、M3.6 | 一预期拍一有效点击；冗余不计分；count-in 前不记分；实时匹配度正确。 |
+| M3.8 | ✅ 训练流程与 count-in | `startTraining()`：count-in 1 小节（可关）→ 50ms tick 判 `audioNow >= firstScoringTime` 进 training；计时器到点（`addOnStopped`）→ completed、手动停止 → aborted、后台 hidden → aborted；结束结算 session result（对齐 §8.2）。 | `src/store/useTrainingStore.ts` + test | M3.2、M3.3、M3.7 | count-in 点击不记分；到点 completed；手动/后台 aborted；结算字段正确。 |
+| M3.9 | ✅ 实时 HUD 与判定动画 | `ScoreHUD`（匹配度 1 位小数/连击/当前判定/早晚偏差）、`JudgementOverlay`（判定浮层 + 颜色 token）、App 训练模式布局（TrainingPad + HUD）。 | `src/components/ScoreHUD.tsx`、`JudgementOverlay.tsx`、`src/App.tsx` + test | M3.7 | HUD 数值渲染；判定浮层；模式布局切换。 |
+| M3.10 | ✅ 训练中锁定设置 + 集成/E2E/文档 | `phase==='training'` 时 Tempo/Pattern/Transport 相关 `disabled`；E2E 训练流程（count-in→输入→结束）、锁定设置；展开本节并勾选。 | `src/components/TempoControls.tsx`、`PatternSettings.tsx`、`tests/e2e/*`、`docs/*` | M3.8、M3.9 | 锁定组件 disabled；E2E 已编写；测试/构建/lint 全绿；文档勾选。 |
+
+#### 5.4.2 任务依赖图
+
+```mermaid
+flowchart LR
+    M3.1 --> M3.2
+    M3.3 --> M3.2
+    M3.3 --> M3.6
+    M3.3 --> M3.8
+    M3.4 --> M3.5
+    M3.5 --> M3.7
+    M3.6 --> M3.7
+    M3.2 --> M3.8
+    M3.7 --> M3.8
+    M3.7 --> M3.9
+    M3.8 --> M3.10
+    M3.9 --> M3.10
+```
+
+#### 5.4.3 模块接口概览
+
+签名简列，实现细节以任务为准：
+
+```ts
+// src/engine/metronomeEngine.ts（新增）
+getFirstBeatTime(): number | null                    // 会话首拍音频时间（评分基准）
+addOnStopped(cb: () => void): void                   // 计时器到点多回调（与 setOnStopped 并存）
+
+// src/lib/input.ts（新建）
+normalizeEventTimeMs(ts: number): number             // 判别 performance-relative vs epoch 并换算
+shouldDedupe(prevMs: number | null, nowMs: number, windowMs?: number): boolean
+
+// src/lib/scoring.ts（新建）
+computeJudgementWindows(intervalMs: number): { perfect: number; great: number; good: number }
+judgeOffset(offsetMs: number, w: JudgementWindows): 'perfect' | 'great' | 'good' | 'miss'
+judgementScore(j: Judgement): number                 // 100 / 85 / 65 / 0
+computeAccuracy(totalScore: number, expectedCount: number): number
+nearestExpectedGlobalIndex(inputAudio, firstScoringTime, spSub, goodWindow, nextIndex): number | null
+
+// src/store/useTrainingStore.ts（新建）
+phase: 'idle' | 'ready' | 'countIn' | 'training' | 'summary'
+session: { hits: Array<{expectedBeatIndex:number; offsetMs:number|null; judgement:string}>;
+  judgements: Record<Judgement, number>; combo: number; maxCombo: number;
+  totalScore: number; resolvedCount: number; earlyCount: number; lateCount: number }
+startSession(cfg): void; recordHit(perfMs: number): void;
+expireMissedBeats(audioNow: number): void; endSession(status: 'completed'|'aborted'): SessionResult
+
+// src/hooks/useTrainingInput.ts（新建）
+useTrainingInput(opts: { onHit: (perfMs: number) => void; enabled: boolean;
+  padRef: RefObject<HTMLElement | null> }): void
+
+// src/store/useMetronomeStore.ts（新增字段，入 persist）
+mode: 'training' | 'metronome'; countInEnabled: boolean
+```
+
+#### 5.4.4 M3 集成验收
+
+- [x] 固定偏差输入命中对应判定区间（scoring 纯函数单测）。
+- [x] 键盘重复与多输入源不重复计分（去重单测）。
+- [x] count-in 阶段点击不影响成绩。
+- [x] 静音与有声训练均可完成并计分（`muted` 不影响评分）。
+- [x] 调度/判定相关纯函数有单测。
+- [x] 训练中设置锁定；计时器到点 `completed`、手动/后台 `aborted`；session result 字段对齐技术方案 §8.2。
+
+执行命令与 §5.2.4 相同（本机用 `node_modules/.bin/*` 运行 vitest/eslint/tsc/vite/playwright）。
 
 ### 5.5 M4：总结与历史
 
@@ -357,6 +431,8 @@ M1 阶段测试重点：tempo 计算边界、时钟桥换算、lookahead 节拍�
 
 M2 阶段测试重点：细分间距与 soft 音色、`subdivisionIndexAtAudioTime`、计时器自动停止（到点不 flush/suspend、回调触发）、静音下 `scheduleBeat` 零节点但调度继续、`useTapTempo` 中位数估算、主题 `data-theme` 切换与持久化、`useFullscreen` 降级；E2E 补细分/计时器/持久化/Tap/静音徽标。
 
+M3 阶段测试重点：判定窗口动态收紧与偏移→判定、`nearestExpectedGlobalIndex`、一预期拍一有效点击与冗余去重、Miss 过期（50ms tick）、count-in 不记分、`liveAccuracy` 用 `resolvedCount`、输入时间基换算与去重窗口、训练状态机（count-in→training→summary）与三类中止（timer/manual/background）；E2E 补训练全流程与锁定设置。
+
 测试数据建议：
 
 - BPM：30、60、120、180、240。
@@ -438,5 +514,6 @@ MVP 发布后观察：
 1. M0 与 M1 已完成：工程与工具链就绪，节拍器核心（BPM/拍号/重音、lookahead 调度、开始/停止、视觉拍灯、后台恢复）落地，§5.2.1 任务表 M1.1–M1.8 全部勾选。
 2. 剩余验收：在真实浏览器完成 5 分钟连续播放与 E2E（本机缺 Playwright 浏览器）。
 3. M2 设置与体验已完成（细分、计时器、Tap BPM、亮暗主题、全屏、静音/仅视觉、设置持久化），§5.3.1 任务表 M2.1–M2.9 全部勾选。
-4. 下一里程碑 M3 训练评分：节拍器/训练模式切换、count-in、键盘/鼠标输入、动态判定窗口、实时匹配度与连击。
+4. M3 训练评分已完成（双模式切换、count-in、键盘/鼠标输入、动态判定窗口、实时匹配度/连击、训练中锁定），§5.4.1 任务表 M3.1–M3.10 全部勾选。
+5. 下一里程碑 M4 总结与历史：会话总结页、IndexedDB 历史记录、状态 completed/aborted、再来一次。
 4. 根据 M1 实测调度抖动，评估是否提前引入校准能力。

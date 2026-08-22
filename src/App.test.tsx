@@ -7,7 +7,7 @@ describe('App', () => {
     render(<App />)
 
     expect(screen.getByText('120')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '开始' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '开始训练' })).toBeInTheDocument()
     expect(screen.getAllByTestId('beat-light')).toHaveLength(4)
   })
 })

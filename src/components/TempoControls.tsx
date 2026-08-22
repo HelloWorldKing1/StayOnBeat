@@ -1,7 +1,11 @@
 import { MAX_BPM, MIN_BPM } from '../lib/tempo'
 import { useMetronomeStore } from '../store/useMetronomeStore'
 
-export function TempoControls() {
+interface TempoControlsProps {
+  disabled?: boolean
+}
+
+export function TempoControls({ disabled = false }: TempoControlsProps) {
   const bpm = useMetronomeStore((s) => s.bpm)
   const setBpm = useMetronomeStore((s) => s.setBpm)
 
@@ -10,7 +14,7 @@ export function TempoControls() {
       <button
         type="button"
         aria-label="降低 BPM"
-        disabled={bpm <= MIN_BPM}
+        disabled={disabled || bpm <= MIN_BPM}
         onClick={() => setBpm(bpm - 1)}
         className="h-9 w-9 rounded-full border border-[var(--border)] disabled:opacity-40"
       >
@@ -23,13 +27,14 @@ export function TempoControls() {
         step={1}
         value={bpm}
         aria-label="BPM"
+        disabled={disabled}
         onChange={(e) => setBpm(Number(e.target.value))}
         className="w-44"
       />
       <button
         type="button"
         aria-label="提高 BPM"
-        disabled={bpm >= MAX_BPM}
+        disabled={disabled || bpm >= MAX_BPM}
         onClick={() => setBpm(bpm + 1)}
         className="h-9 w-9 rounded-full border border-[var(--border)] disabled:opacity-40"
       >

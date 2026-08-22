@@ -19,7 +19,11 @@ function initialTimerMode(timerSeconds: number | null): string {
     : TIMER_MODE_CUSTOM
 }
 
-export function PatternSettings() {
+interface PatternSettingsProps {
+  disabled?: boolean
+}
+
+export function PatternSettings({ disabled = false }: PatternSettingsProps) {
   const beatsPerBar = useMetronomeStore((s) => s.beatsPerBar)
   const accentFirstBeat = useMetronomeStore((s) => s.accentFirstBeat)
   const subdivision = useMetronomeStore((s) => s.subdivision)
@@ -54,8 +58,9 @@ export function PatternSettings() {
         <select
           aria-label="每小节拍数"
           value={beatsPerBar}
+          disabled={disabled}
           onChange={(e) => setBeatsPerBar(Number(e.target.value))}
-          className="rounded border border-[var(--border)] bg-transparent px-2 py-1"
+          className="rounded border border-[var(--border)] bg-transparent px-2 py-1 disabled:opacity-40"
         >
           {Array.from({ length: MAX_BEATS_PER_BAR - MIN_BEATS_PER_BAR + 1 }, (_, i) => {
             const n = MIN_BEATS_PER_BAR + i
@@ -73,6 +78,7 @@ export function PatternSettings() {
           type="checkbox"
           aria-label="重音"
           checked={accentFirstBeat}
+          disabled={disabled}
           onChange={(e) => setAccentFirstBeat(e.target.checked)}
         />
         <span>重音</span>
@@ -83,8 +89,9 @@ export function PatternSettings() {
         <select
           aria-label="细分"
           value={subdivision}
+          disabled={disabled}
           onChange={(e) => setSubdivision(Number(e.target.value) as SubdivisionFactor)}
-          className="rounded border border-[var(--border)] bg-transparent px-2 py-1"
+          className="rounded border border-[var(--border)] bg-transparent px-2 py-1 disabled:opacity-40"
         >
           {SUBDIVISIONS.map((s) => (
             <option key={s} value={s} className="text-black">
@@ -99,8 +106,9 @@ export function PatternSettings() {
         <select
           aria-label="计时器"
           value={timerMode}
+          disabled={disabled}
           onChange={(e) => handleTimerMode(e.target.value)}
-          className="rounded border border-[var(--border)] bg-transparent px-2 py-1"
+          className="rounded border border-[var(--border)] bg-transparent px-2 py-1 disabled:opacity-40"
         >
           <option value={TIMER_MODE_INFINITE} className="text-black">
             无限
@@ -121,8 +129,9 @@ export function PatternSettings() {
             max={3600}
             value={timerSeconds ?? customTimer}
             aria-label="自定义计时秒数"
+            disabled={disabled}
             onChange={(e) => handleCustomChange(e.target.value)}
-            className="w-20 rounded border border-[var(--border)] bg-transparent px-2 py-1"
+            className="w-20 rounded border border-[var(--border)] bg-transparent px-2 py-1 disabled:opacity-40"
           />
         )}
       </label>

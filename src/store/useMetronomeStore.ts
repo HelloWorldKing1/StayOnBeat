@@ -16,6 +16,10 @@ export interface MetronomeState {
   muted: boolean
   volume: number
   theme: Theme
+  /** 当前模式：训练（默认）或节拍器。 */
+  mode: 'training' | 'metronome'
+  /** 训练开始前是否播放 1 小节 count-in（不计分）。 */
+  countInEnabled: boolean
   isPlaying: boolean
   /** 当前正在播放的拍序号；0..beatsPerBar-1，未播放或尚未到首拍时为 -1。 */
   currentBeat: number
@@ -31,6 +35,8 @@ export interface MetronomeState {
   setMuted(muted: boolean): void
   setVolume(volume: number): void
   setTheme(theme: Theme): void
+  setMode(mode: 'training' | 'metronome'): void
+  setCountInEnabled(on: boolean): void
   /** 仅供 useBeatPulse 写入，UI 不应直接调用。 */
   _setCurrentBeat(beat: number): void
   /** 仅供 useBeatPulse 写入，UI 不应直接调用。 */
@@ -48,6 +54,8 @@ export type MetronomeSettingsData = Pick<
   | 'muted'
   | 'volume'
   | 'theme'
+  | 'mode'
+  | 'countInEnabled'
 >
 
 export type MetronomeStoreData = MetronomeSettingsData &
@@ -64,6 +72,8 @@ export const INITIAL_STATE: MetronomeStoreData = {
   muted: true,
   volume: 0.5,
   theme: 'dark',
+  mode: 'training',
+  countInEnabled: true,
   isPlaying: false,
   currentBeat: -1,
   currentSubdivision: -1,
@@ -155,6 +165,12 @@ export function createMetronomeStore(
       document.documentElement.dataset.theme = theme
       set({ theme })
     },
+    setMode(mode) {
+      set({ mode })
+    },
+    setCountInEnabled(on) {
+      set({ countInEnabled: on })
+    },
     _setCurrentBeat(beat) {
       set({ currentBeat: beat })
     },
@@ -177,6 +193,8 @@ export function createMetronomeStore(
             muted: state.muted,
             volume: state.volume,
             theme: state.theme,
+            mode: state.mode,
+            countInEnabled: state.countInEnabled,
           }),
           storage: opts.storage
             ? createJSONStorage(() => opts.storage!)

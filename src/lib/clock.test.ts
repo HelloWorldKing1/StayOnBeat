@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createClockBridge } from './clock'
+import { createClockBridge, type ClockContext } from './clock'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -24,19 +24,22 @@ describe('createClockBridge', () => {
     )
   })
 
-  it('getOutputTimestamp 可用时优先用于校准', () => {
+  it('校准始终使用 currentTime，忽略 getOutputTimestamp', () => {
     const bridge = createClockBridge()
     vi.spyOn(performance, 'now').mockReturnValue(2_000_000)
-    bridge.calibrate({
+    const ctx = {
       currentTime: 50,
       getOutputTimestamp: () => ({ contextTime: 30, performanceTime: 1_500_000 }),
-    })
+    }
+    bridge.calibrate(ctx as unknown as ClockContext)
 
-    expect(bridge.audioToPerfMs(30)).toBeCloseTo(1_500_000)
-    expect(bridge.perfMsToAudio(1_500_000)).toBeCloseTo(30)
+    // 以 currentTime=50 为基准，getOutputTimestamp 不生效
+    expect(bridge.audioToPerfMs(50)).toBeCloseTo(2_000_000)
+    expect(bridge.audioToPerfMs(30)).toBeCloseTo(1_980_000)
+    expect(bridge.perfMsToAudio(2_000_000)).toBeCloseTo(50)
   })
 
-  it('无 getOutputTimestamp 时回退到 currentTime 校准', () => {
+  it('只传 currentTime 也能校准', () => {
     const bridge = createClockBridge()
     vi.spyOn(performance, 'now').mockReturnValue(500)
     bridge.calibrate({ currentTime: 0 })
@@ -44,14 +47,5 @@ describe('createClockBridge', () => {
     expect(bridge.audioToPerfMs(0)).toBeCloseTo(500)
     expect(bridge.audioToPerfMs(1)).toBeCloseTo(1500)
     expect(bridge.perfMsToAudio(500)).toBeCloseTo(0)
-  })
-
-  it('getOutputTimestamp 返回 null 时回退不抛错', () => {
-    const bridge = createClockBridge()
-    vi.spyOn(performance, 'now').mockReturnValue(100)
-    expect(() =>
-      bridge.calibrate({ currentTime: 5, getOutputTimestamp: () => null }),
-    ).not.toThrow()
-    expect(bridge.audioToPerfMs(5)).toBeCloseTo(100)
   })
 })

@@ -415,4 +415,49 @@ describe('createMetronomeEngine', () => {
     const newBeat = h.scheduled[h.scheduled.length - 1]
     expect(newBeat.time).toBeCloseTo(ctxBefore + 0.06, 9)
   })
+
+  it('getFirstBeatTime 返回会话首拍音频时间', async () => {
+    const h = createHarness()
+    const engine = createMetronomeEngine({
+      audioEngine: h.audioEngine,
+      audioClockBridge: h.bridge,
+    })
+    expect(engine.getFirstBeatTime()).toBeNull()
+    await engine.start()
+    expect(engine.getFirstBeatTime()).toBeCloseTo(0.06, 9)
+  })
+
+  it('addOnStopped 多回调在计时器到点触发且可退订', async () => {
+    const h = createHarness()
+    const engine = createMetronomeEngine({
+      audioEngine: h.audioEngine,
+      audioClockBridge: h.bridge,
+    })
+    const cb1 = vi.fn()
+    const cb2 = vi.fn()
+    const unsubscribe = engine.addOnStopped(cb1)
+    engine.addOnStopped(cb2)
+    engine.setTimerSeconds(1)
+
+    await engine.start()
+    for (let i = 0; i < 50; i++) {
+      h.ctx.currentTime += 0.025
+      vi.advanceTimersByTime(25)
+    }
+    expect(cb1).toHaveBeenCalledTimes(1)
+    expect(cb2).toHaveBeenCalledTimes(1)
+
+    // 退订 cb1 后再触发一轮：cb1 不再被调
+    unsubscribe()
+    const cb3 = vi.fn()
+    engine.addOnStopped(cb3)
+    await engine.start()
+    for (let i = 0; i < 50; i++) {
+      h.ctx.currentTime += 0.025
+      vi.advanceTimersByTime(25)
+    }
+    expect(cb1).toHaveBeenCalledTimes(1)
+    expect(cb2).toHaveBeenCalledTimes(2)
+    expect(cb3).toHaveBeenCalledTimes(1)
+  })
 })

@@ -1,7 +1,11 @@
 import { useTapTempo } from '../hooks/useTapTempo'
 import { useMetronomeStore } from '../store/useMetronomeStore'
 
-export function TapTempo() {
+interface TapTempoProps {
+  disabled?: boolean
+}
+
+export function TapTempo({ disabled = false }: TapTempoProps) {
   const setBpm = useMetronomeStore((s) => s.setBpm)
   const { taps, estimatedBpm, onTap, reset } = useTapTempo()
 
@@ -11,7 +15,8 @@ export function TapTempo() {
         type="button"
         aria-label="Tap BPM"
         onClick={onTap}
-        className="rounded-full border border-[var(--border)] px-4 py-1"
+        disabled={disabled}
+        className="rounded-full border border-[var(--border)] px-4 py-1 disabled:opacity-40"
       >
         Tap BPM
       </button>
@@ -24,19 +29,21 @@ export function TapTempo() {
           <button
             type="button"
             aria-label="应用 BPM"
+            disabled={disabled}
             onClick={() => {
               setBpm(estimatedBpm)
               reset()
             }}
-            className="rounded-full border border-[var(--border)] px-3 py-1"
+            className="rounded-full border border-[var(--border)] px-3 py-1 disabled:opacity-40"
           >
             应用
           </button>
           <button
             type="button"
             aria-label="重置 Tap"
+            disabled={disabled}
             onClick={reset}
-            className="rounded-full border border-[var(--border)] px-3 py-1"
+            className="rounded-full border border-[var(--border)] px-3 py-1 disabled:opacity-40"
           >
             重置
           </button>

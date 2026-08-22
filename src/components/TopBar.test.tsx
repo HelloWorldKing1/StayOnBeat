@@ -22,6 +22,15 @@ describe('TopBar', () => {
     expect(useMetronomeStore.getState().muted).toBe(false)
   })
 
+  it('模式切换更新 store.mode', () => {
+    render(<TopBar onOpenSettings={() => {}} />)
+    const btn = screen.getByRole('button', { name: '切换模式' })
+    expect(btn).toHaveTextContent('训练')
+    fireEvent.click(btn)
+    expect(useMetronomeStore.getState().mode).toBe('metronome')
+    expect(btn).toHaveTextContent('节拍器')
+  })
+
   it('设置按钮触发 onOpenSettings', () => {
     const onOpenSettings = vi.fn()
     render(<TopBar onOpenSettings={onOpenSettings} />)

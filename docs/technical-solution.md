@@ -81,11 +81,11 @@ flowchart LR
 
 ### 5.1 模块职责
 
-- `MetronomeEngine`：拥有 lookahead 调度循环（约 25ms refill timer + while 预排），管理 BPM、拍号、细分、计时器、启动/停止，维护 `nextNoteTime`/`beatIndex`/`firstBeatTime`/预期节拍时间序列，并暴露 `beatIndexAtAudioTime()` 供视觉层读取。
+- `MetronomeEngine`：拥有 lookahead 调度循环（约 25ms refill timer + while 预排），管理 BPM、拍号、细分、计时器、启动/停止，维护 `nextNoteTime`/`beatIndex`/`firstBeatTime`/预期节拍时间序列，并暴露 `beatIndexAtAudioTime()` 供视觉层读取；M3 增 `getFirstBeatTime()`/`addOnStopped()` 供评分层使用。
 - `AudioEngine`：纯发声层。封装 `AudioContext` 生命周期（惰性创建、用户手势解锁、`closed` 重建）、`scheduleBeat(audioTime, { accent })` 在音频时间线上排振荡器、重音与非重音音色、音量、静音；不感知拍号/速度。
-- `InputEngine`：监听键盘、鼠标/触摸事件，统一为“一次用户点击”，做去重和防抖。
-- `ScoringEngine`：把点击时间与预期节拍时间对齐，产出判定、连击、准确率、早期/晚期偏差。
-- `SessionStore`：管理单次训练会话，汇总结果。
+- `InputEngine`：M3 落地为 `src/lib/input.ts`（纯函数：事件时间基换算、去重窗口）+ `useTrainingInput`（hook：键盘/鼠标监听、过滤 `event.repeat`、`pointerdown` 限定训练垫）。
+- `ScoringEngine`：M3 落地为 `src/lib/scoring.ts`（纯函数：判定窗口、偏移→判定、最近预期拍、匹配度）+ `useTrainingStore`（状态化编排：命中记录、Miss 过期、结算）。
+- `SessionStore`：`useTrainingStore` 中的 session 运行时与结算结果。
 - `PersistenceStore`：持久化用户设置与历史成绩。
 
 ## 6. 节拍与音频引擎
@@ -135,9 +135,9 @@ AudioClockBridge:
   perfToAudio(perfMs) = audioEpoch + (perfMs - perfEpoch) / 1000
 ```
 
-在 `AudioContext` 真正开始渲染后再校准一次。若浏览器支持 `AudioContext.getOutputTimestamp()`，优先用其校正输入延迟；手动“输入延迟校准”作为 P1 增强项。
+在 `AudioContext` 真正开始渲染后再校准一次。**时钟桥统一用输入时钟校准（`ctx.currentTime` + `performance.now()`），不使用 `AudioContext.getOutputTimestamp()`**——其 `performanceTime` 跨浏览器时间基不一致会引入大偏移（曾致训练输入无法命中）。手动“输入延迟校准”作为 P1 增强项。
 
-M1 视觉相位直接读 `ctx.currentTime`（与调度同源），不经时钟桥，避免 `getOutputTimestamp()` 跨浏览器时间基差异导致相位漂移；`AudioClockBridge` 保留供 M3 输入评分把输入事件时间映射到调度时钟使用。
+M1 视觉相位直接读 `ctx.currentTime`（与调度同源）；M3 输入评分经 `AudioClockBridge.perfMsToAudio`（同为输入时钟）把输入事件时间映射到调度时钟，与调度/视觉同源。
 
 ### 6.3 输入采集
 
@@ -145,6 +145,8 @@ M1 视觉相位直接读 `ctx.currentTime`（与调度同源），不经时钟�
 - 鼠标/触摸：监听训练垫上的 `pointerdown`，使用 `Pointer Events` 统一鼠标和触屏。
 - 同一物理动作可能同时触发 keydown 和 pointerdown，需要在训练模式中区分输入源或做事件去重。
 - 使用 `event.timeStamp`，若同一浏览器中 `event.timeStamp` 与 `performance.now()` 同源则可直接用于偏差计算。
+
+M3 落地：`event.timeStamp` 先经 `normalizeEventTimeMs` 判别时间基（performance-relative vs epoch）并换算，再用 `audioClockBridge.perfMsToAudio` 映射到音频时钟；同源输入用 50ms 去重窗口合并「同一物理动作」；`pointerdown` 限定 `[data-training-pad]`（避免点停止/设置误计分）；`Space`/`Enter` 调 `preventDefault()` 防止页面滚动。
 
 ### 6.4 静音/视觉节拍
 
@@ -180,6 +182,8 @@ perfectWindow = min(40, goodWindow * 0.40)
 
 `40 / 80 / 120ms` 是低速场景下的名义上限；高 BPM 或高细分时窗口会等比例缩小，避免“相邻两拍同时命中”或过宽判定。判定颜色统一为：Perfect=金色，Great=绿色，Good=黄色，Miss=灰/红。
 
+M3 落地：上述公式封装为 `computeJudgementWindows(intervalMs)`（`interval = 1000 * secondsPerSubdivision(bpm, subdivision)`）。命中匹配用 `nearestExpectedGlobalIndex(inputAudio, firstScoringTime, spSub, goodWindow, nextIndex)`——只接受落在 `goodWindow` 内的最近「未消费」预期拍，避免“晚一拍却判中”。
+
 ### 7.2 匹配度
 
 实时显示两类值：
@@ -200,6 +204,8 @@ accuracy = 100 * (sum of hit scores) / (total expected beats * 100)
 ```
 
 其中 `hit score` 取该点击所属判定对应的分值；若同一预期节拍只允许一个有效点击，多余点击不计入得分，但计为冗余点击。
+
+M3 落地：`liveAccuracy` 的分母取 `resolvedCount`（已结算预期拍 = 已命中 + 已过期 Miss），由 50ms tick 触发 `expireMissedBeats(audioNow)` 推进，避免在计分推进前分母小于分子导致 >100%。
 
 ### 7.3 会话结果
 
@@ -243,7 +249,7 @@ accuracy = 100 * (sum of hit scores) / (total expected beats * 100)
 }
 ```
 
-M2 落地：设置子集（`bpm/beatsPerBar/accentFirstBeat/subdivision/timerSeconds/muted/volume/theme`）经 zustand `persist` 中间件写入 localStorage（key `stayonbeat-settings`，version 1）；`timerSeconds` 可为 `null`（无限，不自动停止）。瞬态字段（`mode/inputMode/calibrationMs` 及运行时状态）不持久化。
+M2/M3 落地：设置子集（`bpm/beatsPerBar/accentFirstBeat/subdivision/timerSeconds/muted/volume/theme/mode/countInEnabled`）经 zustand `persist` 中间件写入 localStorage（key `stayonbeat-settings`，version 1，新增字段浅合并回退默认）；`timerSeconds` 可为 `null`（无限，不自动停止）。瞬态字段（`inputMode/calibrationMs` 及运行时状态）不持久化。
 
 ### 8.2 训练会话
 
@@ -271,6 +277,8 @@ M2 落地：设置子集（`bpm/beatsPerBar/accentFirstBeat/subdivision/timerSec
 }
 ```
 
+M3 落地：`expectedBeatIndex` 为全局细分序号（含 count-in 偏移的全局拍序）；`offsetMs` 可为 `null`（Miss，无偏移）；`hits` 含 Miss 条目以便完整结算。
+
 ## 9. 状态机
 
 ```text
@@ -285,6 +293,8 @@ IDLE -> READY -> PLAYING -> STOPPED -> IDLE
 MVP 训练模式不做暂停，减少状态复杂度；计时器到点、用户点停止或中止均进入 Summary。节拍器模式不产生计分会话。
 
 节拍器模式 `PLAYING → STOPPED` 含计时器到点自动停止（引擎按 `endAudioTime` 越界停止排拍，不 flush、不 suspend，让窗口内最后几拍自然播完）。
+
+训练模式 phase 映射：store 内 `phase`（`idle/ready/countIn/training/summary`）对应 `IDLE→READY→COUNT_IN→TRAINING→SUMMARY`；中止分三类——计时器到点→`completed`、手动停止/后台 hidden→`aborted`。训练模式下 `useBeatPulse` 跳过 `resumeAfterBackground`（避免节拍时间轴重排破坏评分）。
 
 ## 10. 组件拆分草案
 

@@ -71,6 +71,8 @@ describe('createMetronomeStore', () => {
       muted: state.muted,
       volume: state.volume,
       theme: state.theme,
+      mode: state.mode,
+      countInEnabled: state.countInEnabled,
       isPlaying: state.isPlaying,
       currentBeat: state.currentBeat,
       currentSubdivision: state.currentSubdivision,
@@ -165,6 +167,14 @@ describe('createMetronomeStore', () => {
     expect(document.documentElement.dataset.theme).toBe('light')
   })
 
+  it('setMode / setCountInEnabled 更新设置', () => {
+    const store = createMetronomeStore(fakeDeps())
+    store.getState().setMode('metronome')
+    expect(store.getState().mode).toBe('metronome')
+    store.getState().setCountInEnabled(false)
+    expect(store.getState().countInEnabled).toBe(false)
+  })
+
   it('_setCurrentBeat / _setCurrentSubdivision 更新运行态', () => {
     const store = createMetronomeStore(fakeDeps())
     store.getState()._setCurrentBeat(3)
@@ -180,6 +190,8 @@ describe('createMetronomeStore', () => {
     store.getState().setBpm(90)
     store.getState().setTheme('light')
     store.getState().setSubdivision(2)
+    store.getState().setMode('metronome')
+    store.getState().setCountInEnabled(false)
 
     const raw = storage.getItem(SETTINGS_STORAGE_KEY) as string | null
     expect(raw).toBeTruthy()
@@ -187,6 +199,8 @@ describe('createMetronomeStore', () => {
     expect(parsed.state.bpm).toBe(90)
     expect(parsed.state.theme).toBe('light')
     expect(parsed.state.subdivision).toBe(2)
+    expect(parsed.state.mode).toBe('metronome')
+    expect(parsed.state.countInEnabled).toBe(false)
     // 瞬态不持久化
     expect(parsed.state.isPlaying).toBeUndefined()
     expect(parsed.state.currentBeat).toBeUndefined()
@@ -197,5 +211,7 @@ describe('createMetronomeStore', () => {
     expect(store2.getState().bpm).toBe(90)
     expect(store2.getState().theme).toBe('light')
     expect(store2.getState().subdivision).toBe(2)
+    expect(store2.getState().mode).toBe('metronome')
+    expect(store2.getState().countInEnabled).toBe(false)
   })
 })

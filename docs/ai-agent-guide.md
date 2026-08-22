@@ -92,6 +92,15 @@ AI 代理在本仓库承担三类工作：
 | 2026-08-21 | M2：设置持久化用 zustand `persist`（key `stayonbeat-settings` v1），测试工厂默认关闭 | 声明式 partialize + 自动 rehydrate；测试默认不触碰 localStorage | 生效 |
 | 2026-08-21 | M2：计时器归 `MetronomeEngine` 音频时钟驱动，`setOnStopped` 回调，到点不 flush 不 suspend | store 级 `setTimeout` 后台会节流且与调度不同源；到点让窗口内最后几拍自然播完 | 生效 |
 | 2026-08-21 | M2：Tap BPM 取中位数抗抖动，过滤 200–3000ms，间隔 >2500ms 重置 | 连点/停顿会把均值带偏 | 生效 |
+| 2026-08-21 | M3：`mode`/`countInEnabled` 持久化于 metronome store，训练运行时独立 `useTrainingStore` | 设置与运行时分离，避免评分会话状态污染持久化 | 生效 |
+| 2026-08-21 | M3：输入采集用 hook，去重/时间基换算抽 `src/lib/input.ts` 纯函数 | 时间基判别与去重窗口可单测；hook 只管监听 | 生效 |
+| 2026-08-21 | M3：Miss 过期由 50ms tick 驱动（`expireMissedBeats`），非查询触发 | 用户停止点击时也能结算 Miss，避免停滞 | 生效 |
+| 2026-08-21 | M3：`addOnStopped` 与 `setOnStopped` 并存，训练经 `addOnStopped` 收计时器到点 | 训练要收「到点→completed」，与手动停止区分 | 生效 |
+| 2026-08-21 | M3：后台切回按 `aborted` 结算；训练模式跳过 `resumeAfterBackground` | 避免节拍时间轴重排破坏评分 | 生效 |
+| 2026-08-21 | M3：预期拍时间确定性计算 `expectedBeatTime(k)=firstScoringTime+k*spSub` | 评分只需 `getFirstBeatTime()`+配置，不必暴露排拍序列 | 生效 |
+| 2026-08-21 | M3：persist version 保持 1，新增字段浅合并回退默认 | 避免旧 localStorage 数据因版本升级失效 | 生效 |
+| 2026-08-21 | M3 输入评分用输入时钟桥（不依赖 `getOutputTimestamp`），与视觉/调度同源 | `getOutputTimestamp().performanceTime` 跨浏览器时间基不一致会引入大偏移，导致训练输入无法命中预期拍 | 生效 |
+| 2026-08-21 | 训练视觉由 training phase 驱动（`shouldRunBeatPulse`），非 `isPlaying`；后台 hidden 中止训练 | 训练模式不置 metronome isPlaying，rAF 需按 phase 运行；后台中止避免节拍时间轴重排破坏评分 | 生效 |
 
 ## 7. 输出要求
 

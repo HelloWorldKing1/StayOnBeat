@@ -3,6 +3,9 @@ import { expect, test } from '@playwright/test'
 test('节拍器基础交互：BPM、拍号、开始/停止与拍灯脉冲', async ({ page }) => {
   await page.goto('/')
 
+  // 切到节拍器模式（默认训练）
+  await page.getByRole('button', { name: '切换模式' }).click()
+
   // 初始状态：BPM 120、拍号 4、开始按钮
   await expect(page.getByText('120')).toBeVisible()
   await expect(page.getByRole('button', { name: '开始' })).toBeVisible()

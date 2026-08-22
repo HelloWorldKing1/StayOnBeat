@@ -1,11 +1,9 @@
-import { useState } from 'react'
-import { HistoryPanel } from './components/HistoryPanel'
+import { lazy, Suspense, useState } from 'react'
 import { JudgementOverlay } from './components/JudgementOverlay'
 import { MetronomeDisplay } from './components/MetronomeDisplay'
 import { PatternSettings } from './components/PatternSettings'
 import { ScoreHUD } from './components/ScoreHUD'
 import { SessionSummary } from './components/SessionSummary'
-import { SettingsDrawer } from './components/SettingsDrawer'
 import { TapTempo } from './components/TapTempo'
 import { TempoControls } from './components/TempoControls'
 import { TopBar } from './components/TopBar'
@@ -13,6 +11,14 @@ import { TrainingPad } from './components/TrainingPad'
 import { TransportControls } from './components/TransportControls'
 import { useBeatPulse } from './hooks/useBeatPulse'
 import { useSaveSessionToHistory } from './hooks/useSaveSessionToHistory'
+
+// M5.4：设置抽屉与历史面板懒加载，降低首屏包体
+const SettingsDrawer = lazy(() =>
+  import('./components/SettingsDrawer').then((m) => ({ default: m.SettingsDrawer })),
+)
+const HistoryPanel = lazy(() =>
+  import('./components/HistoryPanel').then((m) => ({ default: m.HistoryPanel })),
+)
 import { useMetronomeStore } from './store/useMetronomeStore'
 import { useTrainingStore } from './store/useTrainingStore'
 
@@ -66,9 +72,15 @@ function App() {
         <TempoControls disabled={locked} />
         <TapTempo disabled={locked} />
         <PatternSettings disabled={locked} />
-        {training && <HistoryPanel />}
+        {training && (
+          <Suspense fallback={null}>
+            <HistoryPanel />
+          </Suspense>
+        )}
       </section>
-      <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <Suspense fallback={null}>
+        <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      </Suspense>
     </main>
   )
 }

@@ -5,6 +5,7 @@ import { createAudioEngine, type AudioEngine } from '../engine/audioEngine'
 import { createMetronomeEngine, type MetronomeEngine } from '../engine/metronomeEngine'
 
 export type Theme = 'dark' | 'light'
+export type InputMode = 'keyboard' | 'mouse' | 'mixed'
 
 export interface MetronomeState {
   bpm: number
@@ -20,6 +21,10 @@ export interface MetronomeState {
   mode: 'training' | 'metronome'
   /** 训练开始前是否播放 1 小节 count-in（不计分）。 */
   countInEnabled: boolean
+  /** 训练输入方式：仅键盘 / 仅鼠标 / 混合。 */
+  inputMode: InputMode
+  /** 输入延迟校准（毫秒）；P1 占位，MVP 默认 0。 */
+  calibrationMs: number
   isPlaying: boolean
   /** 当前正在播放的拍序号；0..beatsPerBar-1，未播放或尚未到首拍时为 -1。 */
   currentBeat: number
@@ -37,6 +42,8 @@ export interface MetronomeState {
   setTheme(theme: Theme): void
   setMode(mode: 'training' | 'metronome'): void
   setCountInEnabled(on: boolean): void
+  setInputMode(mode: InputMode): void
+  setCalibrationMs(ms: number): void
   /** 仅供 useBeatPulse 写入，UI 不应直接调用。 */
   _setCurrentBeat(beat: number): void
   /** 仅供 useBeatPulse 写入，UI 不应直接调用。 */
@@ -56,6 +63,8 @@ export type MetronomeSettingsData = Pick<
   | 'theme'
   | 'mode'
   | 'countInEnabled'
+  | 'inputMode'
+  | 'calibrationMs'
 >
 
 export type MetronomeStoreData = MetronomeSettingsData &
@@ -74,6 +83,8 @@ export const INITIAL_STATE: MetronomeStoreData = {
   theme: 'dark',
   mode: 'training',
   countInEnabled: true,
+  inputMode: 'keyboard',
+  calibrationMs: 0,
   isPlaying: false,
   currentBeat: -1,
   currentSubdivision: -1,
@@ -171,6 +182,12 @@ export function createMetronomeStore(
     setCountInEnabled(on) {
       set({ countInEnabled: on })
     },
+    setInputMode(mode) {
+      set({ inputMode: mode })
+    },
+    setCalibrationMs(ms) {
+      set({ calibrationMs: Math.max(0, Math.min(500, Math.round(ms))) })
+    },
     _setCurrentBeat(beat) {
       set({ currentBeat: beat })
     },
@@ -195,6 +212,8 @@ export function createMetronomeStore(
             theme: state.theme,
             mode: state.mode,
             countInEnabled: state.countInEnabled,
+            inputMode: state.inputMode,
+            calibrationMs: state.calibrationMs,
           }),
           storage: opts.storage
             ? createJSONStorage(() => opts.storage!)

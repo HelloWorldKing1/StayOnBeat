@@ -17,7 +17,7 @@ export function TrainingPad({ onHit, active }: TrainingPadProps) {
       data-training-pad
       aria-label="训练点击垫"
       disabled={!active}
-      className={`h-40 w-64 rounded-3xl border border-[var(--border)] bg-[var(--panel)] text-[var(--text-secondary)] transition-transform active:scale-95 ${
+      className={`h-40 w-64 max-w-full rounded-3xl border border-[var(--border)] bg-[var(--panel)] text-[var(--text-secondary)] transition-transform active:scale-95 ${
         active ? 'cursor-pointer' : 'opacity-60'
       }`}
     >

@@ -1,5 +1,6 @@
 import { useFullscreen } from '../hooks/useFullscreen'
 import { useMetronomeStore } from '../store/useMetronomeStore'
+import { useTrainingStore } from '../store/useTrainingStore'
 
 interface TopBarProps {
   onOpenSettings: () => void
@@ -14,19 +15,34 @@ export function TopBar({ onOpenSettings }: TopBarProps) {
   const setMode = useMetronomeStore((s) => s.setMode)
   const { isFullscreen, toggle, supported } = useFullscreen()
 
+  // 切换模式前先停止当前 transport，避免会话错乱（节拍器停止 / 训练中止）
+  const handleModeSwitch = () => {
+    const { mode: current, isPlaying } = useMetronomeStore.getState()
+    if (current === 'training') {
+      const phase = useTrainingStore.getState().phase
+      if (phase === 'countIn' || phase === 'training') {
+        useTrainingStore.getState().stopTraining('aborted')
+        useMetronomeStore.getState().stop()
+      }
+    } else if (isPlaying) {
+      useMetronomeStore.getState().stop()
+    }
+    setMode(current === 'training' ? 'metronome' : 'training')
+  }
+
   return (
-    <header className="relative z-10 flex w-full items-center justify-between px-6 py-3">
+    <header className="relative z-10 flex w-full flex-wrap items-center justify-between gap-y-2 px-6 py-3">
       <span className="text-sm font-semibold tracking-[0.28em] text-[var(--primary)]">
         STAY ON BEAT
       </span>
-      <div className="flex items-center gap-2 text-sm">
+      <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
         <button
           type="button"
-          aria-label="切换模式"
-          onClick={() => setMode(mode === 'training' ? 'metronome' : 'training')}
+          aria-label={mode === 'training' ? '切换节拍器' : '切换训练模式'}
+          onClick={handleModeSwitch}
           className="rounded-full border border-[var(--border)] px-3 py-1"
         >
-          {mode === 'training' ? '训练' : '节拍器'}
+          {mode === 'training' ? '切换节拍器' : '切换训练模式'}
         </button>
         <button
           type="button"

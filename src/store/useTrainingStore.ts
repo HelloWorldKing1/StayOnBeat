@@ -228,6 +228,8 @@ export function createTrainingStore(deps: TrainingStoreDeps = {}) {
       }
       unsubscribeOnStopped?.()
       unsubscribeOnStopped = null
+      // 训练结束复位拍灯（节拍器 store 的 currentBeat），避免总结页残留点亮
+      useMetronomeStore.setState({ currentBeat: -1, currentSubdivision: -1 })
       if (!get().session) {
         set({ phase: 'summary' })
         return

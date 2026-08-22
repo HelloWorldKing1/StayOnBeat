@@ -4,7 +4,7 @@ test('节拍器基础交互：BPM、拍号、开始/停止与拍灯脉冲', asyn
   await page.goto('/')
 
   // 切到节拍器模式（默认训练）
-  await page.getByRole('button', { name: '切换模式' }).click()
+  await page.getByRole('button', { name: '切换节拍器' }).click()
 
   // 初始状态：BPM 120、拍号 4、开始按钮
   await expect(page.getByText('120')).toBeVisible()

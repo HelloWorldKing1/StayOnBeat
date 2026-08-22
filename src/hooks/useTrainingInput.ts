@@ -40,6 +40,14 @@ export function useTrainingInput({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return
       if (e.code === 'Space' || e.code === 'Enter') {
+        // 焦点在交互控件上时让默认行为生效（按钮激活、输入框等），避免无法用键盘操作控件
+        const target = e.target
+        if (
+          target instanceof HTMLElement &&
+          target.closest('button, input, select, textarea, a')
+        ) {
+          return
+        }
         e.preventDefault()
         fire(performance.now())
       }

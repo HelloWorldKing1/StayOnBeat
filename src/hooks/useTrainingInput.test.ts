@@ -1,6 +1,6 @@
 import { createRef } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { act, renderHook } from '@testing-library/react'
+import { act, fireEvent, renderHook } from '@testing-library/react'
 import { useTrainingInput } from './useTrainingInput'
 
 describe('useTrainingInput', () => {
@@ -38,5 +38,23 @@ describe('useTrainingInput', () => {
       )
     })
     expect(onHit).toHaveBeenCalledTimes(1)
+  })
+
+  it('焦点在按钮上时不拦截 Space（让按钮可激活）', () => {
+    const onHit = vi.fn()
+    const padRef = createRef<HTMLElement>()
+    renderHook(() => useTrainingInput({ onHit, enabled: true, padRef }))
+    const btn = document.createElement('button')
+    btn.textContent = '停止'
+    document.body.appendChild(btn)
+
+    try {
+      act(() => {
+        fireEvent.keyDown(btn, { code: 'Space' })
+      })
+      expect(onHit).not.toHaveBeenCalled()
+    } finally {
+      document.body.removeChild(btn)
+    }
   })
 })

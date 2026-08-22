@@ -31,9 +31,9 @@ test('模式切换：训练 ↔ 节拍器', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('button', { name: '开始训练' })).toBeVisible()
 
-  await page.getByRole('button', { name: '切换模式' }).click()
+  await page.getByRole('button', { name: '切换节拍器' }).click()
   await expect(page.getByRole('button', { name: '开始' })).toBeVisible()
 
-  await page.getByRole('button', { name: '切换模式' }).click()
+  await page.getByRole('button', { name: '切换训练模式' }).click()
   await expect(page.getByRole('button', { name: '开始训练' })).toBeVisible()
 })

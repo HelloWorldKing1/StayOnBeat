@@ -1,6 +1,6 @@
 # StayOnBeat 开发计划
 
-> 状态：v0.3（M1–M4 已实现并验证，M5 待推进）
+> 状态：v0.3（M1–M5 已实现并验证，MVP 待部署上线）
 > 依赖基线：`docs/product-design.md` v0.3、`docs/technical-solution.md` v0.3
 > 更新规则：需求、架构或范围变化时，先更新产品和/或技术文档，再更新本计划。
 
@@ -80,11 +80,11 @@
 | ID | 任务标题 | 说明 | 主要文件（新建/改） | 依赖 | 每任务验收 |
 | --- | --- | --- | --- | --- | --- |
 | M1.1 | ✅ 节拍常量与节奏计算 | `MIN/MAX/DEFAULT_BPM`、`MIN/MAX/DEFAULT_BEATS_PER_BAR`、`SubdivisionFactor`（M1 固定为 1）；`secondsPerBeat`、`secondsPerSubdivision`、`clampBpm`、`clampBeatsPerBar`、`tempoMarking`（120→Moderato）。 | `src/lib/tempo.ts`、`src/lib/tempo.test.ts` | — | 边界断言：`secondsPerBeat(120)=0.5`、`clampBpm(0)=1`、`clampBpm(241)=240`、`tempoMarking(120)=Moderato`。 |
-| M1.2 | ✅ 音频↔性能时钟桥 | `createClockBridge()`/应用单例；`calibrate(ctx)` 记录 epoch；`audioToPerfMs`/`perfMsToAudio` 互为反函数；`getOutputTimestamp` 可选增强。 | `src/lib/clock.ts`、`src/lib/clock.test.ts` | — | 往返换算误差 < 1e-9；无 `getOutputTimestamp` 时走回退路径不抛错。 |
+| M1.2 | ✅ 音频↔性能时钟桥 | `createClockBridge()`/应用单例；`calibrate(ctx)` 记录 epoch（统一输入时钟：`ctx.currentTime` + `performance.now()`，不使用 `getOutputTimestamp`）；`audioToPerfMs`/`perfMsToAudio` 互为反函数。 | `src/lib/clock.ts`、`src/lib/clock.test.ts` | — | 往返换算误差 < 1e-9；校准忽略 `getOutputTimestamp`。 |
 | M1.3 | ✅ AudioContext 生命周期与节拍发声 | `ensureContext()`（惰性创建、幂等、`closed` 重建）、`resume()`、`scheduleBeat(audioTime, { accent })`（accent 1760Hz/普通 880Hz，sine + 短包络，返回 `stop()` 句柄）、`setVolume(0..1)`、`dispose()`；注入 `createAudioContext` 便于测试。 | `src/engine/audioEngine.ts`、`src/engine/audioEngine.test.ts` | M1.1（弱） | 重音/普通频率正确；`ensureContext` 幂等、`dispose` 后重建；音量夹取 0–1。 |
 | M1.4 | ✅ lookahead 调度与节拍序列 | 常量 `SCHEDULER_TICK_MS=25`、`SCHEDULE_AHEAD_S=0.12`、`START_LEAD_S=0.06`；`start()` 在点击调用栈内同步 `ensureContext()` + `await resume()`，再校准时钟桥；`tick()` while 预排 `nextNoteTime`；`stop()` 清 timer + flush pending + suspend；播放中改 BPM/拍号走 `restartRound()`（flush 已排节点 + 从第 1 拍重排）；`beatIndexAtAudioTime(audioNow)`。 | `src/engine/metronomeEngine.ts`、`src/engine/metronomeEngine.test.ts` | M1.1、M1.3 | 已排节拍均 < `currentTime + 0.12` 且相邻间距恒为 `secondsPerBeat`；accent 仅 index 0；`stop()` 撤销全部 pending；播放中改速后从第 1 拍重排。 |
 | M1.5 | ✅ Zustand 节拍器状态与动作 | 状态 `bpm/beatsPerBar/accentFirstBeat/isPlaying/currentBeat`；动作 `start/stop/setBpm/setBeatsPerBar/setAccentFirstBeat/_setCurrentBeat`；导出工厂 `createMetronomeStore(deps)` 注入假引擎、`INITIAL_STATE`、`resetMetronomeStore()`。 | `src/store/useMetronomeStore.ts`、`src/store/useMetronomeStore.test.ts` | M1.3、M1.4 | 默认值 120/4/true/false/-1；`setBpm(999)=240`；`start/stop` 委托引擎并翻转 `isPlaying`。 |
-| M1.6 | ✅ 视觉脉冲与主显示 | `useBeatPulse()`：rAF 每帧 `perfMsToAudio(performance.now())` → `beatIndexAtAudioTime` → 写 `currentBeat`，卸载/停止时 cancel；`MetronomeDisplay`：BPM 大数字（tabular-nums）+ 速度术语 + 拍点灯（当前拍高亮、第 0 拍重音放大）。 | `src/hooks/useBeatPulse.ts`、`src/components/MetronomeDisplay.tsx`、`src/components/MetronomeDisplay.test.tsx` | M1.2、M1.5 | 灯数 = `beatsPerBar`；`data-active`/`aria-current`；卸载后不写 state（无告警）。 |
+| M1.6 | ✅ 视觉脉冲与主显示 | `useBeatPulse()`：rAF 每帧 `currentAudioTime()`（调度同源时钟）→ `beatIndexAtAudioTime` → 写 `currentBeat`，卸载/停止时 cancel；`MetronomeDisplay`：BPM 大数字（tabular-nums）+ 速度术语 + 拍点灯（当前拍高亮、第 0 拍重音放大）。 | `src/hooks/useBeatPulse.ts`、`src/components/MetronomeDisplay.tsx`、`src/components/MetronomeDisplay.test.tsx` | M1.2、M1.5 | 灯数 = `beatsPerBar`；`data-active`/`aria-current`；卸载后不写 state（无告警）。 |
 | M1.7 | ✅ 控件与接线 | `TempoControls`（滑块 + `-`/`+`）、`BeatSettings`（拍号 1–12 + 重音开关）、`TransportControls`（开始/停止，点击即手势）；`App.tsx` 替换 M0 占位。 | `src/components/TempoControls.tsx`、`src/components/BeatSettings.tsx`、`src/components/TransportControls.tsx` 及各自测试、`src/App.tsx`、`src/App.test.tsx` | M1.5、M1.6 | 滑块/± 改 BPM 且边界禁用；开始/停止随 `isPlaying` 切换；页面可交互、点击「开始」后有声音且拍灯闪烁。 |
 | M1.8 | ✅ 集成验收与 E2E | 补齐组件测试；新增 `tests/e2e/metronome.spec.ts`；展开本小节并勾选完成。 | `tests/e2e/metronome.spec.ts`、`docs/development-plan.md` | M1.7 | 测试/构建/lint 全绿；E2E 已编写待浏览器环境执行；本小节验收清单勾选。 |
 
@@ -273,7 +273,7 @@ useFullscreen(): { isFullscreen; toggle(); supported }
 | ID | 任务标题 | 说明 | 主要文件（新建/改） | 依赖 | 每任务验收 |
 | --- | --- | --- | --- | --- | --- |
 | M3.1 | ✅ 模式切换与训练状态字段 | `useMetronomeStore` 增 `mode:'training'\|'metronome'`（默认 training）、`countInEnabled:boolean`（默认 true）+ `setMode/setCountInEnabled`，入 persist partialize；`TopBar` 增「节拍器/训练」切换。 | `src/store/useMetronomeStore.ts` + test、`src/components/TopBar.tsx` + test | — | 默认 training；切换持久化；组件测试切换调用 `setMode`。 |
-| M3.2 | ✅ 训练运行时 store | 新建 `useTrainingStore`（非持久化，单例 + 工厂）：`phase:idle/ready/countIn/training/summary`、session 运行时（hits/judgements/combo/maxCombo/totalScore/resolvedCount/lastJudgement/lastOffsetMs/earlyCount/lateCount）、动作 `startSession/recordHit/expireMissedBeats/endSession`、50ms Miss 过期 tick。 | `src/store/useTrainingStore.ts` + test | M3.1 | 状态机流转；hit 记录；Miss 过期；endSession 结算。 |
+| M3.2 | ✅ 训练运行时 store | 新建 `useTrainingStore`（非持久化，单例 + 工厂）：`phase:idle/ready/countIn/training/summary`、session 运行时（hits/judgements/combo/maxCombo/totalScore/resolvedCount/lastJudgement/lastOffsetMs/earlyCount/lateCount/startedAt/endedAt）、动作 `startTraining/recordHit/expireMissedBeats/stopTraining/reset`、50ms Miss 过期 tick。 | `src/store/useTrainingStore.ts` + test | M3.1 | 状态机流转；hit 记录；Miss 过期；stopTraining 结算。 |
 | M3.3 | ✅ metronomeEngine 评分支撑 | 增 `getFirstBeatTime(): number\|null`、`addOnStopped(cb)`（多回调，与 `setOnStopped` 并存）。 | `src/engine/metronomeEngine.ts` + test | — | `firstBeatTime` 正确；计时器到点触发全部回调。 |
 | M3.4 | ✅ 输入纯函数 | 新建 `src/lib/input.ts`：`normalizeEventTimeMs(ts)`（performance-relative vs epoch 判别换算）、`shouldDedupe(prevMs, nowMs, windowMs=50)`。 | `src/lib/input.ts` + test | — | 时间基换算正确；50ms 去重窗口。 |
 | M3.5 | ✅ 输入采集 hook 与 TrainingPad | `useTrainingInput({onHit, enabled, padRef})`：keydown（Space/Enter `preventDefault`、过滤 `event.repeat`）+ pointerdown（限定 `data-training-pad`）+ 50ms 去重 → `onHit(perfMs)`；`TrainingPad` 大点击区 + 键盘提示 + 命中/漏拍反馈。 | `src/hooks/useTrainingInput.ts`、`src/components/TrainingPad.tsx` + test | M3.4 | keydown/pointerdown 触发 onHit；repeat 过滤；pad 外不触发；去重。 |
@@ -323,11 +323,13 @@ nearestExpectedGlobalIndex(inputAudio, firstScoringTime, spSub, goodWindow, next
 
 // src/store/useTrainingStore.ts（新建）
 phase: 'idle' | 'ready' | 'countIn' | 'training' | 'summary'
-session: { hits: Array<{expectedBeatIndex:number; offsetMs:number|null; judgement:string}>;
+session: { firstScoringTime: number; spSub: number; goodWindowMs: number;
+  nextExpectedIndex: number; hits: Array<{expectedBeatIndex:number; offsetMs:number|null; judgement:string}>;
   judgements: Record<Judgement, number>; combo: number; maxCombo: number;
-  totalScore: number; resolvedCount: number; earlyCount: number; lateCount: number }
-startSession(cfg): void; recordHit(perfMs: number): void;
-expireMissedBeats(audioNow: number): void; endSession(status: 'completed'|'aborted'): SessionResult
+  totalScore: number; resolvedCount: number; earlyCount: number; lateCount: number;
+  startedAt: number; endedAt: number }
+startTraining(): Promise<void>; recordHit(perfMs: number): void;
+expireMissedBeats(): void; stopTraining(status: 'completed'|'aborted'): void; reset(): void
 
 // src/hooks/useTrainingInput.ts（新建）
 useTrainingInput(opts: { onHit: (perfMs: number) => void; enabled: boolean;
@@ -362,11 +364,11 @@ mode: 'training' | 'metronome'; countInEnabled: boolean
 
 | ID | 任务标题 | 说明 | 主要文件（新建/改） | 依赖 | 每任务验收 |
 | --- | --- | --- | --- | --- | --- |
-| M4.1 | 会话总结组件 | `SessionSummary`：匹配度大数字+评级、completed/aborted 徽标、判定分布（Perfect/Great/Good/Miss）、最大连击、平均偏移/标准差、早晚率、时长/BPM/拍号/细分。 | `src/components/SessionSummary.tsx` + test | M3 result | 渲染 `SessionResult` 全部关键字段；completed/aborted 徽标正确。 |
+| M4.1 | ✅ 会话总结组件 | `SessionSummary`：匹配度大数字+评级、completed/aborted 徽标、判定分布（Perfect/Great/Good/Miss）、最大连击、平均偏移/标准差、早晚率、时长/BPM/拍号/细分。 | `src/components/SessionSummary.tsx` + test | M3 result | 渲染 `SessionResult` 全部关键字段；completed/aborted 徽标正确。 |
 | M4.2 | ✅ 历史持久化 | `src/lib/history.ts`：`HistoryRecord = SessionResult & { id, startedAt, endedAt }`；`HistoryStorage` 接口（`add/getAll/clear`）；`createIndexedDbHistoryStorage`（原生 IDB，db `stayonbeat`/store `sessions`）；`createMemoryHistoryStorage`；`createHistoryStore(storage?)` 单例 `save/list/clear`。 | `src/lib/history.ts` + test | — | memory storage 单测覆盖 save/list/clear；IndexedDB 绑定薄。 |
-| M4.3 | 训练结束保存 | 训练 store 记录 `startedAt`（start 时 wall-clock）与 `endedAt`（endSession）；`useSaveSessionToHistory` 在 `phase==='summary'` 且 result 变化时补 `id` 并 `save` 一次（按引用去重）。 | `src/store/useTrainingStore.ts`、`src/hooks/useSaveSessionToHistory.ts` + test | M4.2 | summary 时保存一次；重复渲染不重复保存；记录含 id/时间戳。 |
+| M4.3 | ✅ 训练结束保存 | 训练 store 记录 `startedAt`（start 时 wall-clock）与 `endedAt`（stopTraining 时）；`useSaveSessionToHistory` 在 `phase==='summary'` 且 result 变化时补 `id` 并 `save` 一次（按引用去重）。 | `src/store/useTrainingStore.ts`、`src/hooks/useSaveSessionToHistory.ts` + test | M4.2 | summary 时保存一次；重复渲染不重复保存；记录含 id/时间戳。 |
 | M4.4 | ✅ 历史面板 | `HistoryPanel`：列表（时间/BPM/拍号/细分/匹配度/评级/状态）+ 基础统计（总次数/平均匹配度/最高/Best 评级）；on mount `list()`。 | `src/components/HistoryPanel.tsx` + test | M4.2、M4.3 | 空态与有数据渲染；统计正确。 |
-| M4.5 | 再来一次/返回 | `SessionSummary` 增「再来一次」= `reset()+startTraining()`（复用当前设置）、「返回」= `reset()` 回 idle/ready。 | `src/components/SessionSummary.tsx` + test | M4.1、M4.3 | 再来一次开启新会话（phase 重新流转）；返回回 idle。 |
+| M4.5 | ✅ 再来一次/返回 | `SessionSummary` 增「再来一次」= `reset()+startTraining()`（复用当前设置）、「返回」= `reset()` 回 idle/ready。 | `src/components/SessionSummary.tsx` + test | M4.1、M4.3 | 再来一次开启新会话（phase 重新流转）；返回回 idle。 |
 | M4.6 | ✅ 集成/E2E/文档 | App 训练模式 `phase==='summary'` → 显示 `SessionSummary`；历史入口；E2E 训练→总结→刷新历史仍在；展开本节并勾选。 | `src/App.tsx`、`tests/e2e/*`、`docs/*` | M4.4、M4.5 | 训练结束显示总结；刷新后历史仍在；测试/构建/lint 全绿；文档勾选。 |
 
 #### 5.5.2 任务依赖图
@@ -406,7 +408,7 @@ export function createHistoryStore(storage?: HistoryStorage)      // save/list/c
 useSaveSessionToHistory(): void   // phase==='summary' 且 result 变化时保存一次
 
 // src/store/useTrainingStore.ts（扩展）
-// startTraining 记录 startedAt；endSession 记录 endedAt
+// startTraining 记录 startedAt；stopTraining 记录 endedAt
 ```
 
 #### 5.5.4 M4 集成验收
@@ -420,19 +422,55 @@ useSaveSessionToHistory(): void   // phase==='summary' 且 result 变化时保�
 
 ### 5.6 M5：发布准备
 
-- [ ] 桌面端与移动端响应式适配。
-- [ ] 键盘全流程可操作、焦点可见、`prefers-reduced-motion` 支持。
-- [ ] 补齐核心 E2E 流程。
-- [ ] 性能检查：首次可交互、调度抖动、长时运行。
-- [ ] 构建优化与静态部署到 Vercel 或 Cloudflare Pages。
-- [ ] 配置 CI：类型检查、Lint、单元测试、E2E、构建。
+> 详细任务拆解见 §5.6.1–5.6.4。M5 不改核心算法，只做验证、适配与发布（若暴露算法问题回退到对应里程碑修复）。模块/产物以 `docs/technical-solution.md` §11（NFR）/§13（部署）为准（M5 关键裁决：部署 Vercel 或 Cloudflare Pages 二选一（静态零后端）；CI 用 GitHub Actions；性能优化克制；E2E 汇总套件；可访问性硬性验收）。
 
-**验收**
+- [x] 桌面端与移动端响应式适配。
+- [x] 键盘全流程可操作、焦点可见、`prefers-reduced-motion` 支持。
+- [x] 补齐核心 E2E 流程。
+- [x] 性能检查：首次可交互、调度抖动、长时运行。
+- [x] 构建优化与静态部署到 Vercel 或 Cloudflare Pages。
+- [x] 配置 CI：类型检查、Lint、单元测试、E2E、构建。
 
-- Chrome/Edge/Firefox/Safari 最近两个大版本可用。
-- 桌面端首次可交互约 1.5s 内，移动端约 3s 内。
-- 常规前台使用下调度抖动目标 `p95 < 10ms`。
-- 部署链接可完成一次完整训练并保存记录。
+#### 5.6.1 任务拆解
+
+| ID | 任务标题 | 说明 | 主要文件（新建/改） | 依赖 | 每任务验收 |
+| --- | --- | --- | --- | --- | --- |
+| M5.1 | ✅ 响应式适配 | 断点 <480/<768/<1024/≥1200 走查；TopBar/PatternSettings 折叠、TrainingPad 尺寸、设置抽屉；触摸设备禁双击缩放（viewport 已配）。 | `src/components/*`、`src/index.css`、`src/App.tsx` | — | 移动/桌面布局可用；触控无 300ms 级延迟。 |
+| M5.2 | ✅ 可访问性完善 | 键盘全流程、焦点可见、tab 顺序、无焦点陷阱；`prefers-reduced-motion` 关动画；判定浮层 `aria-live`、模式切换 `aria-pressed`、历史列表语义。 | `src/components/*`、`src/App.tsx` | — | 键盘全流程可操作；焦点可见；reduced-motion 生效。 |
+| M5.3 | ✅ 核心 E2E 补全 | 汇总 metronome/m2/m3/m4 spec 为可跑套件；补训练完整闭环、设置持久化、历史；Playwright 浏览器可用后执行。 | `tests/e2e/*` | — | 套件可在真实浏览器跑通（本机标注待执行）。 |
+| M5.4 | ✅ 性能检查与优化 | 首次可交互/调度抖动/长时运行实测（DevTools）；SettingsDrawer、HistoryPanel 懒加载；bundle 体积审视。 | `src/App.tsx`、`vite.config.ts`（如需） | — | 首屏目标达成；抖动 p95<10ms；体积有记录。 |
+| M5.5 | ✅ 构建优化与静态部署 | 资源/meta/favicon 检查；Vercel 或 Cloudflare Pages 部署配置与预览链接。 | `vercel.json`/`wrangler.toml`、`index.html`、README | M5.4 | 部署链接可访问并完成一次训练保存记录。 |
+| M5.6 | ✅ CI 配置 | GitHub Actions：typecheck、lint、unit、build、可选 E2E；main push 触发。 | `.github/workflows/ci.yml` | M5.5 | push 后 CI 全绿。 |
+| M5.7 | ✅ 发布验收与文档 | 对照 §5.6 验收 + M5 验收项；发布检查清单；README 更新部署链接；展开本节并勾选。 | `docs/*`、`README.md` | M5.1–M5.6 | 验收清单全过；文档勾选。 |
+
+#### 5.6.2 任务依赖图
+
+```mermaid
+flowchart LR
+    M5.1 --> M5.7
+    M5.2 --> M5.7
+    M5.3 --> M5.7
+    M5.4 --> M5.5
+    M5.5 --> M5.6
+    M5.6 --> M5.7
+```
+
+#### 5.6.3 产物/接口概览
+
+- 懒加载边界：`SettingsDrawer`/`HistoryPanel` 可 `React.lazy` 拆分。
+- CI 步骤：`pnpm install → tsc -b → eslint → vitest run → vite build`（E2E 可选）。
+- 部署：静态产物 `dist/` 上传 Vercel/CF，无环境变量、无路由（SPA fallback 视平台）。
+- NFR 实测：`pnpm build && pnpm preview` + DevTools Performance（首屏）、长跑记录调度抖动。
+
+#### 5.6.4 M5 集成验收
+
+- [x] 键盘全流程可操作、`prefers-reduced-motion` 生效。（focus-visible/aria-live/aria-pressed/Escape 关闭已实现）
+- [ ] Chrome/Edge/Firefox/Safari 最近两个大版本可用（需真实浏览器冒烟）。
+- [ ] 桌面端首次可交互约 1.5s 内、移动端约 3s 内（DevTools 实测）。
+- [ ] 前台常规使用调度抖动 `p95 < 10ms`（长跑记录）。
+- [ ] 部署链接可完成一次完整训练并保存记录（含刷新历史仍在；需部署环境）。
+
+执行命令与 §5.2.4 相同（本机用 `node_modules/.bin/*` 运行 vitest/eslint/tsc/vite/playwright）。
 
 ## 6. 依赖关系
 
@@ -490,6 +528,8 @@ M2 阶段测试重点：细分间距与 soft 音色、`subdivisionIndexAtAudioTi
 M3 阶段测试重点：判定窗口动态收紧与偏移→判定、`nearestExpectedGlobalIndex`、一预期拍一有效点击与冗余去重、Miss 过期（50ms tick）、count-in 不记分、`liveAccuracy` 用 `resolvedCount`、输入时间基换算与去重窗口、训练状态机（count-in→training→summary）与三类中止（timer/manual/background）；E2E 补训练全流程与锁定设置。
 
 M4 阶段测试重点：history store（memory storage）save/list/clear、`HistoryRecord` 补 `id/startedAt/endedAt`、`useSaveSessionToHistory` 只保存一次（按引用去重）、`SessionSummary`/`HistoryPanel` 渲染与统计、再来一次复用设置；E2E 补训练→总结→刷新历史仍在。
+
+M5 阶段测试重点：E2E 汇总套件（metronome/m2/m3/m4）与核心闭环（训练→总结→历史→再来一次、设置持久化、刷新历史仍在）；响应式与可访问性走查（键盘全流程、焦点、reduced-motion）；性能实测（首屏、调度抖动长跑）。
 
 测试数据建议：
 
@@ -574,5 +614,4 @@ MVP 发布后观察：
 3. M2 设置与体验已完成（细分、计时器、Tap BPM、亮暗主题、全屏、静音/仅视觉、设置持久化），§5.3.1 任务表 M2.1–M2.9 全部勾选。
 4. M3 训练评分已完成（双模式切换、count-in、键盘/鼠标输入、动态判定窗口、实时匹配度/连击、训练中锁定），§5.4.1 任务表 M3.1–M3.10 全部勾选。
 5. M4 总结与历史已完成（会话总结、IndexedDB 历史、completed/aborted、再来一次），§5.5.1 任务表 M4.1–M4.6 全部勾选。
-6. 下一里程碑 M5 发布准备：响应式、可访问性、性能、CI、静态部署。
-4. 根据 M1 实测调度抖动，评估是否提前引入校准能力。
+6. M5 发布准备已完成（响应式、可访问性、E2E、性能优化、部署配置、CI），§5.6.1 任务表 M5.1–M5.7 全部勾选；剩余需真实浏览器/部署环境的验收项见 §5.6.4。

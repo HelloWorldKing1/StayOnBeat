@@ -17,7 +17,7 @@ test('主题切换后刷新持久化', async ({ page }) => {
 
 test('计时器自定义 2s 到点自动停止', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: '切换模式' }).click() // 节拍器模式
+  await page.getByRole('button', { name: '切换节拍器' }).click() // 节拍器模式
   await page.getByLabel('计时器').selectOption('custom')
   await page.getByLabel('自定义计时秒数').fill('2')
   await page.getByRole('button', { name: '开始' }).click()
@@ -42,7 +42,7 @@ test('Tap BPM 4 次点击后出现估算并可应用', async ({ page }) => {
 
 test('细分切换到八分后子拍序号在 0/1 间变化', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: '切换模式' }).click() // 节拍器模式
+  await page.getByRole('button', { name: '切换节拍器' }).click() // 节拍器模式
   await page.getByRole('button', { name: '开始' }).click()
   await page.getByLabel('细分').selectOption('2')
   await expect(page.getByRole('button', { name: '停止' })).toBeVisible()

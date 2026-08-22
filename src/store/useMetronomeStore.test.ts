@@ -73,6 +73,8 @@ describe('createMetronomeStore', () => {
       theme: state.theme,
       mode: state.mode,
       countInEnabled: state.countInEnabled,
+      inputMode: state.inputMode,
+      calibrationMs: state.calibrationMs,
       isPlaying: state.isPlaying,
       currentBeat: state.currentBeat,
       currentSubdivision: state.currentSubdivision,
@@ -175,6 +177,16 @@ describe('createMetronomeStore', () => {
     expect(store.getState().countInEnabled).toBe(false)
   })
 
+  it('setInputMode / setCalibrationMs 更新设置', () => {
+    const store = createMetronomeStore(fakeDeps())
+    store.getState().setInputMode('mixed')
+    expect(store.getState().inputMode).toBe('mixed')
+    store.getState().setCalibrationMs(150)
+    expect(store.getState().calibrationMs).toBe(150)
+    store.getState().setCalibrationMs(9999)
+    expect(store.getState().calibrationMs).toBe(500)
+  })
+
   it('_setCurrentBeat / _setCurrentSubdivision 更新运行态', () => {
     const store = createMetronomeStore(fakeDeps())
     store.getState()._setCurrentBeat(3)
@@ -192,6 +204,7 @@ describe('createMetronomeStore', () => {
     store.getState().setSubdivision(2)
     store.getState().setMode('metronome')
     store.getState().setCountInEnabled(false)
+    store.getState().setInputMode('mouse')
 
     const raw = storage.getItem(SETTINGS_STORAGE_KEY) as string | null
     expect(raw).toBeTruthy()
@@ -201,6 +214,7 @@ describe('createMetronomeStore', () => {
     expect(parsed.state.subdivision).toBe(2)
     expect(parsed.state.mode).toBe('metronome')
     expect(parsed.state.countInEnabled).toBe(false)
+    expect(parsed.state.inputMode).toBe('mouse')
     // 瞬态不持久化
     expect(parsed.state.isPlaying).toBeUndefined()
     expect(parsed.state.currentBeat).toBeUndefined()
@@ -213,5 +227,6 @@ describe('createMetronomeStore', () => {
     expect(store2.getState().subdivision).toBe(2)
     expect(store2.getState().mode).toBe('metronome')
     expect(store2.getState().countInEnabled).toBe(false)
+    expect(store2.getState().inputMode).toBe('mouse')
   })
 })

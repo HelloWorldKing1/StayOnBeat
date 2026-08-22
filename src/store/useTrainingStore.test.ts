@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createClockBridge, type AudioClockBridge } from '../lib/clock'
 import type { MetronomeEngine } from '../engine/metronomeEngine'
 import { createTrainingStore, type TrainingStoreDeps } from './useTrainingStore'
+import { useMetronomeStore } from './useMetronomeStore'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -152,6 +153,15 @@ describe('createTrainingStore', () => {
     expect(h.store.getState().phase).toBe('idle')
     expect(h.store.getState().session).toBeNull()
     expect(h.store.getState().result).toBeNull()
+  })
+
+  it('stopTraining 复位拍灯 currentBeat/currentSubdivision', async () => {
+    const h = createHarness({ countInEnabled: false })
+    useMetronomeStore.setState({ currentBeat: 2, currentSubdivision: 1 })
+    await h.store.getState().startTraining()
+    h.store.getState().stopTraining('aborted')
+    expect(useMetronomeStore.getState().currentBeat).toBe(-1)
+    expect(useMetronomeStore.getState().currentSubdivision).toBe(-1)
   })
 
   it('recordHit 用输入时钟桥可正常匹配命中（回归：不依赖 getOutputTimestamp）', async () => {

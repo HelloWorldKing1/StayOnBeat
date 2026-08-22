@@ -1,4 +1,5 @@
-import { useMetronomeStore } from '../store/useMetronomeStore'
+import { useEffect } from 'react'
+import { useMetronomeStore, type InputMode } from '../store/useMetronomeStore'
 
 interface SettingsDrawerProps {
   open: boolean
@@ -12,6 +13,18 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
   const setMuted = useMetronomeStore((s) => s.setMuted)
   const theme = useMetronomeStore((s) => s.theme)
   const setTheme = useMetronomeStore((s) => s.setTheme)
+  const inputMode = useMetronomeStore((s) => s.inputMode)
+  const setInputMode = useMetronomeStore((s) => s.setInputMode)
+
+  // M5.2：Escape 关闭
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
 
   if (!open) return null
 
@@ -23,6 +36,8 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     >
       <section
         className="w-full max-w-md rounded-t-2xl border border-[var(--border)] bg-[var(--panel)] p-6"
+        role="dialog"
+        aria-modal="true"
         aria-label="设置"
         onClick={(e) => e.stopPropagation()}
       >
@@ -59,6 +74,25 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
             checked={muted}
             onChange={(e) => setMuted(e.target.checked)}
           />
+        </label>
+        <label className="mb-4 flex items-center gap-3 text-sm">
+          <span className="w-12">输入</span>
+          <select
+            aria-label="输入方式"
+            value={inputMode}
+            onChange={(e) => setInputMode(e.target.value as InputMode)}
+            className="rounded border border-[var(--border)] bg-transparent px-2 py-1"
+          >
+            <option value="keyboard" className="text-black">
+              仅键盘
+            </option>
+            <option value="mouse" className="text-black">
+              仅鼠标
+            </option>
+            <option value="mixed" className="text-black">
+              混合
+            </option>
+          </select>
         </label>
         <div className="flex items-center gap-3 text-sm">
           <span className="w-12">主题</span>

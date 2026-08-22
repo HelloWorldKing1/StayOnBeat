@@ -22,6 +22,7 @@ export function JudgementOverlay() {
     <p
       key={resolvedCount}
       data-testid="judgement"
+      aria-live="polite"
       className={`text-2xl font-bold ${JUDGEMENT_COLORS[lastJudgement]}`}
     >
       {JUDGEMENT_LABELS[lastJudgement]}

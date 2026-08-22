@@ -8,8 +8,7 @@ StayOnBeat：在线节奏训练器。参考 `metronome-online.com/zh` 的节拍�
 
 ## 当前阶段
 
-- M0 工程基线已完成（React 18 + TS + Vite + Tailwind 4 + Zustand 5 + Vitest + Playwright）。
-- 下一里程碑：**M1 节拍器核心**，详细任务拆解见 `docs/development-plan.md` §5.2。
+- M1–M5 已完成（节拍器核心 → 发布准备），MVP 待部署上线。
 - **默认只维护文档，不编写产品代码，除非用户明确指示。**
 
 ## 常用命令（pnpm）

@@ -1,6 +1,6 @@
 # StayOnBeat 技术方案
 
-> 状态：v0.3（M1 已实现，后续里程碑待推进）
+> 状态：v0.3（M1–M5 已实现，MVP 待部署上线）
 > 参考站点：https://metronome-online.com/zh
 > 产品定位：面向无法在工作时间练琴的用户的“在线节奏训练器”，在节拍器基础上增加键盘/鼠标点击匹配与即时评分。
 
@@ -82,7 +82,7 @@ flowchart LR
 ### 5.1 模块职责
 
 - `MetronomeEngine`：拥有 lookahead 调度循环（约 25ms refill timer + while 预排），管理 BPM、拍号、细分、计时器、启动/停止，维护 `nextNoteTime`/`beatIndex`/`firstBeatTime`/预期节拍时间序列，并暴露 `beatIndexAtAudioTime()` 供视觉层读取；M3 增 `getFirstBeatTime()`/`addOnStopped()` 供评分层使用。
-- `AudioEngine`：纯发声层。封装 `AudioContext` 生命周期（惰性创建、用户手势解锁、`closed` 重建）、`scheduleBeat(audioTime, { accent })` 在音频时间线上排振荡器、重音与非重音音色、音量、静音；不感知拍号/速度。
+- `AudioEngine`：纯发声层。封装 `AudioContext` 生命周期（惰性创建、用户手势解锁、`closed` 重建）、`scheduleBeat(audioTime, { accent, soft })` 在音频时间线上排振荡器、重音/拍头/子拍音色、音量、静音；不感知拍号/速度。
 - `InputEngine`：M3 落地为 `src/lib/input.ts`（纯函数：事件时间基换算、去重窗口）+ `useTrainingInput`（hook：键盘/鼠标监听、过滤 `event.repeat`、`pointerdown` 限定训练垫）。
 - `ScoringEngine`：M3 落地为 `src/lib/scoring.ts`（纯函数：判定窗口、偏移→判定、最近预期拍、匹配度）+ `useTrainingStore`（状态化编排：命中记录、Miss 过期、结算）。
 - `SessionStore`：`useTrainingStore` 中的 session 运行时与结算结果。
@@ -241,6 +241,7 @@ M3 落地：`liveAccuracy` 的分母取 `resolvedCount`（已结算预期拍 = �
   "subdivision": 1,
   "timerSeconds": 60,
   "mode": "training",
+  "countInEnabled": true,
   "volume": 0.5,
   "theme": "dark",
   "inputMode": "keyboard",
@@ -249,7 +250,7 @@ M3 落地：`liveAccuracy` 的分母取 `resolvedCount`（已结算预期拍 = �
 }
 ```
 
-M2/M3 落地：设置子集（`bpm/beatsPerBar/accentFirstBeat/subdivision/timerSeconds/muted/volume/theme/mode/countInEnabled`）经 zustand `persist` 中间件写入 localStorage（key `stayonbeat-settings`，version 1，新增字段浅合并回退默认）；`timerSeconds` 可为 `null`（无限，不自动停止）。瞬态字段（`inputMode/calibrationMs` 及运行时状态）不持久化。
+M2/M3 落地：设置子集（`bpm/beatsPerBar/accentFirstBeat/subdivision/timerSeconds/muted/volume/theme/mode/countInEnabled/inputMode/calibrationMs`）经 zustand `persist` 中间件写入 localStorage（key `stayonbeat-settings`，version 1，新增字段浅合并回退默认）；`timerSeconds` 可为 `null`（无限，不自动停止）；`calibrationMs` 为 P1 输入延迟校准占位（MVP 默认 0）。运行时状态（`isPlaying/currentBeat/currentSubdivision` 等）不持久化。
 
 ### 8.2 训练会话
 
@@ -304,20 +305,18 @@ MVP 训练模式不做暂停，减少状态复杂度；计时器到点、用户�
 
 - `MetronomeDisplay`：BPM 数字、拍点灯、当前拍。
 - `TempoControls`：滑块、+/-、BPM 预设。
-- `PatternSettings`：拍号、重音、细分、计时器。
+- `PatternSettings`：拍号、重音、细分、计时器（M2 起取代 M1 的 `BeatSettings`）。
 - `TransportControls`：开始/停止、Tap BPM、模式切换（节拍器/训练）。
 - `TrainingPad`：大点击区域、键盘提示、命中动画。
 - `JudgementOverlay`：Perfect/Great/Good/Miss 文字与颜色反馈。
 - `ScoreHUD`：实时匹配度、连击、当前判定。
-- `SessionSummary`：结果面板与重试按钮。
-- `HistoryPanel`：历史成绩列表与统计。
+- `SessionSummary`：训练结果面板（匹配度/评级/判定分布/连击/早晚率）+ 再来一次/返回（M4）。
+- `HistoryPanel`：最近训练记录列表与基础统计（M4）。
 - `SettingsDrawer`：音量、主题、输入模式、校准。
 - `TopBar`：主题切换、全屏、静音、设置入口（M2）。
 - `TapTempo`：点击计数与 BPM 估算、应用（M2）。
-- `PatternSettings`：拍号、重音、细分、计时器（M2 起取代 M1 的 `BeatSettings`）。
 - `useFullscreen` / `useTapTempo`：全屏与 Tap 逻辑 hook（M2）。
-- `SessionSummary`：训练结果面板（匹配度/评级/判定分布/连击/早晚率）+ 再来一次/返回（M4）。
-- `HistoryPanel`：最近训练记录列表与基础统计（M4）。
+- 懒加载边界：`SettingsDrawer`/`HistoryPanel` 可 `React.lazy` 拆分（M5）。
 
 ## 11. 非功能需求
 
@@ -330,6 +329,8 @@ MVP 训练模式不做暂停，减少状态复杂度；计时器到点、用户�
 | 可用性 | 核心逻辑本地运行，无后端依赖；刷新保留设置，训练记录不丢；PWA 离线安装为 P2 |
 | 可访问性 | 键盘全流程可操作，动画可关闭，对比度达标 |
 | 隐私 | 默认不采集任何个人信息，不接第三方统计 |
+
+M5 落地：以上目标用 DevTools Performance 实测（首屏/调度抖动长跑）、跨浏览器冒烟、键盘走查；不引入重型优化，必要时对 `SettingsDrawer`/`HistoryPanel` 懒加载。
 
 ## 12. 测试策略
 
@@ -346,18 +347,20 @@ MVP 训练模式不做暂停，减少状态复杂度；计时器到点、用户�
 - CI：代码检查、类型检查、单元测试、E2E 测试、构建产物校验。
 - 无需后端环境变量；后续如需服务端再迁移。
 
+M5 落地：部署目标 Vercel 或 Cloudflare Pages 二选一（静态、零后端、无环境变量、SPA fallback 视平台）；CI 用 GitHub Actions（typecheck/lint/unit/build，E2E 可选）。
+
 ## 14. 里程碑建议
 
 1. M0：技术栈脚手架、样式基础、AGENTS 规范落地。
 2. M1：节拍器核心（BPM、拍号、重音、声音、视觉）。
 3. M2：细分、计时器、Tap BPM、亮暗主题、全屏。
 4. M3：训练模式、键盘/鼠标输入、判定与实时评分。
-5. M4：会话总结、历史记录、校准、静音训练。
+5. M4：会话总结、历史记录、再来一次。
 6. M5：响应式、可访问性、性能与 E2E、部署发布。
 
 ## 15. 风险与决策
 
-- 风险：不同浏览器音频输入延迟不一致，影响“客观匹配度”。对策：支持手动校准，评分基于相对稳定偏差而非绝对认证。
+- 风险：不同浏览器音频输入延迟不一致，影响“客观匹配度”。对策：支持手动校准，评分基于相对稳定偏差而非绝对时间对齐。
 - 风险：后台标签页定时器节流。对策：音频调度基于 AudioContext，节拍序列不依赖主线程定时器；回到前台重新校准。
 - 风险：键盘重复、多输入源重复计数。对策：统一输入事件并去重。
 - 风险：用户使用无线键盘/蓝牙耳机造成额外延迟。对策：校准提示、静音视觉模式作为低延迟路径。

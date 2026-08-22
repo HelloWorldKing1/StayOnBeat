@@ -18,6 +18,8 @@ export interface HistoryStore {
   save(record: HistoryRecord): Promise<void>
   list(): Promise<HistoryRecord[]>
   clear(): Promise<void>
+  /** 订阅数据变化（保存/清空后触发），返回退订函数。 */
+  subscribe(listener: () => void): () => void
 }
 
 const DB_NAME = 'stayonbeat'
@@ -93,10 +95,26 @@ export function createMemoryHistoryStorage(): HistoryStorage {
 export function createHistoryStore(
   storage: HistoryStorage = createIndexedDbHistoryStorage(),
 ): HistoryStore {
+  const listeners = new Set<() => void>()
+  const notify = () => {
+    for (const listener of listeners) listener()
+  }
   return {
-    save: (record) => storage.add(record),
+    async save(record) {
+      await storage.add(record)
+      notify()
+    },
     list: () => storage.getAll(),
-    clear: () => storage.clear(),
+    async clear() {
+      await storage.clear()
+      notify()
+    },
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
   }
 }
 

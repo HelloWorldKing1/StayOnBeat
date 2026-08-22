@@ -42,6 +42,19 @@ body {
   min-height: 100vh;
 }
 
+/* M5.1 触控：禁用双击缩放延迟 */
+button,
+input,
+select {
+  touch-action: manipulation;
+}
+
+/* M5.2 键盘焦点可见 */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* 子拍脉动（M2.7 由活跃拍灯触发，animation-duration 由组件内联覆盖） */
 @keyframes beat-pulse {
   0%,
